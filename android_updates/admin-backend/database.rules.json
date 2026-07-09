@@ -1,0 +1,15 @@
+{
+  "rules": {
+    "devices": {
+      ".read": false,
+      ".write": false,
+      "$deviceId": {
+        ".write": "auth != null"
+      }
+    },
+    "commandLog": {
+      ".read": false,
+      ".write": false
+    }
+  }
+}

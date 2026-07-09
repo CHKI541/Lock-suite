@@ -1,0 +1,167 @@
+package com.ejemplo.locksuite.mdm
+
+import android.app.PendingIntent
+import android.app.admin.DevicePolicyManager
+import android.content.ComponentName
+import android.content.Context
+import android.content.Intent
+import android.content.pm.ApplicationInfo
+import android.content.pm.PackageInstaller
+import android.content.pm.PackageManager
+import android.os.Build
+import android.graphics.Bitmap
+import androidx.core.graphics.drawable.toBitmap
+import com.ejemplo.locksuite.receiver.DeviceAdminReceiver
+import com.ejemplo.locksuite.util.PrefsHelper
+
+class AppController(private val context: Context) {
+
+    private val dpm = context.getSystemService(Context.DEVICE_POLICY_SERVICE) as DevicePolicyManager
+    private val pm = context.packageManager
+    private val adminComponent = ComponentName(context, DeviceAdminReceiver::class.java)
+
+    private val systemEssential = setOf(
+        "com.android.systemui", 
+        "com.android.settings",
+        "com.android.phone", 
+        "com.android.providers.telephony",
+        "com.ejemplo.locksuite",
+        "com.google.android.gms",
+        "com.google.android.gsf",
+        "com.google.android.packageinstaller",
+        "com.android.packageinstaller",
+        "com.google.android.inputmethod.latin", // Gboard
+        "com.sec.android.inputmethod" // Samsung Keyboard
+    )
+
+    fun isCritical(packageName: String): Boolean {
+        return packageName in systemEssential || getLauncherPackages().contains(packageName)
+    }
+
+    fun hideApp(packageName: String, hide: Boolean): Boolean {
+        if (isCritical(packageName)) return false
+        return try {
+            dpm.setApplicationHidden(adminComponent, packageName, hide)
+            PrefsHelper.getMdmPrefs(context).edit().putBoolean("hide_$packageName", hide).apply()
+            true
+        } catch (e: Exception) {
+            e.printStackTrace()
+            false
+        }
+    }
+
+    fun isAppHidden(packageName: String): Boolean {
+        return try {
+            dpm.isApplicationHidden(adminComponent, packageName)
+        } catch (e: Exception) {
+            PrefsHelper.getMdmPrefs(context).getBoolean("hide_$packageName", false)
+        }
+    }
+
+    fun suspendApp(packageName: String, suspend: Boolean): Boolean {
+        if (isCritical(packageName)) return false
+        return try {
+            val packages = arrayOf(packageName)
+            val result = dpm.setPackagesSuspended(adminComponent, packages, suspend)
+            val success = result.isEmpty()
+            if (success) {
+                PrefsHelper.getMdmPrefs(context).edit().putBoolean("suspend_$packageName", suspend).apply()
+            }
+            success
+        } catch (e: Exception) {
+            e.printStackTrace()
+            false
+        }
+    }
+
+    fun isAppSuspended(packageName: String): Boolean {
+        return try {
+            dpm.isPackageSuspended(adminComponent, packageName)
+        } catch (e: Exception) {
+            PrefsHelper.getMdmPrefs(context).getBoolean("suspend_$packageName", false)
+        }
+    }
+
+    fun uninstallApp(packageName: String): Boolean {
+        return try {
+            val packageInstaller = pm.packageInstaller
+            val intent = Intent(context, com.ejemplo.locksuite.receiver.UninstallReceiver::class.java)
+            val pendingIntent = PendingIntent.getBroadcast(
+                context,
+                0,
+                intent,
+                PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_MUTABLE
+            )
+            packageInstaller.uninstall(packageName, pendingIntent.intentSender)
+            true
+        } catch (e: Exception) {
+            e.printStackTrace()
+            false
+        }
+    }
+
+    fun getUserApps(loadIcon: Boolean = true): List<AppInfoData> {
+        val installedApps = pm.getInstalledApplications(0)
+
+        return installedApps
+            .mapNotNull { app ->
+                try {
+                    val label = pm.getApplicationLabel(app).toString()
+                    val bitmap = if (loadIcon) {
+                        try {
+                            pm.getApplicationIcon(app).toBitmap()
+                        } catch (e: Exception) {
+                            null
+                        }
+                    } else {
+                        null
+                    }
+
+                    val isSystem = (app.flags and ApplicationInfo.FLAG_SYSTEM) != 0
+                    val isUpdatedSystem = (app.flags and ApplicationInfo.FLAG_UPDATED_SYSTEM_APP) != 0
+                    val hasLauncher = pm.getLaunchIntentForPackage(app.packageName) != null
+
+                    // Clasificación de la aplicación
+                    val appType = when {
+                        !isSystem -> "Usuario"
+                        isUpdatedSystem -> "Preinstalada"
+                        hasLauncher -> "Preinstalada"
+                        else -> "Sistema"
+                    }
+
+                    AppInfoData(
+                        packageName = app.packageName,
+                        label = label,
+                        icon = bitmap,
+                        isHidden = isAppHidden(app.packageName),
+                        isSuspended = isAppSuspended(app.packageName),
+                        appType = appType,
+                        isWebViewBlocked = WebViewBlockManager.isBlocked(context, app.packageName),
+                        isCritical = isCritical(app.packageName),
+                        imageBlockingMode = ImageBlockManager.getMode(context, app.packageName)
+                    )
+                } catch (e: Exception) {
+                    null
+                }
+            }
+            .sortedBy { it.label }
+    }
+
+    private fun getLauncherPackages(): Set<String> {
+        val intent = Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_HOME)
+        val list = pm.queryIntentActivities(intent, PackageManager.MATCH_DEFAULT_ONLY)
+        return list.map { it.activityInfo.packageName }.toSet()
+    }
+}
+
+data class AppInfoData(
+    val packageName: String,
+    val label: String,
+    val icon: Bitmap?,
+    var isHidden: Boolean,
+    var isSuspended: Boolean,
+    val appType: String,
+    var isWebViewBlocked: Boolean = false,
+    val isCritical: Boolean = false,
+    val imageBlockingMode: String = "none"
+)

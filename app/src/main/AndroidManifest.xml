@@ -1,0 +1,201 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
+
+    <!-- PERMISOS REQUERIDOS -->
+    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE" />
+    <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
+    <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />
+    <uses-permission android:name="android.permission.INTERNET" />
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <uses-permission android:name="android.permission.DELETE_PACKAGES" />
+    <uses-permission android:name="android.permission.QUERY_ALL_PACKAGES" tools:ignore="QueryAllPackagesPermission" />
+    <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS" />
+
+    <application
+        android:name=".LockSuiteApplication"
+        android:allowBackup="false"
+        android:icon="@drawable/ic_logo"
+        android:label="LockSuite MDM"
+        android:roundIcon="@drawable/ic_logo"
+        android:supportsRtl="true"
+        android:theme="@style/Theme.LockSuite"
+        tools:replace="android:allowBackup,android:icon,android:roundIcon">
+
+        <!-- DEVICE ADMIN RECEIVER — Núcleo del MDM -->
+        <receiver
+            android:name=".receiver.DeviceAdminReceiver"
+            android:description="@string/device_admin_description"
+            android:label="LockSuite MDM Admin"
+            android:permission="android.permission.BIND_DEVICE_ADMIN"
+            android:exported="true">
+            <meta-data
+                android:name="android.app.device_admin"
+                android:resource="@xml/device_admin_policies" />
+            <intent-filter>
+                <action android:name="android.app.action.DEVICE_ADMIN_ENABLED" />
+            </intent-filter>
+        </receiver>
+
+        <!-- BOOT RECEIVER (Persistencia ante reinicio) -->
+        <receiver
+            android:name=".receiver.BootReceiver"
+            android:exported="true">
+            <intent-filter android:priority="999">
+                <action android:name="android.intent.action.BOOT_COMPLETED" />
+                <action android:name="android.intent.action.LOCKED_BOOT_COMPLETED" />
+            </intent-filter>
+        </receiver>
+
+        <!-- SECRET CODE RECEIVER (Marcador telefónico) -->
+        <receiver
+            android:name=".receiver.SecretCodeReceiver"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.provider.Telephony.SECRET_CODE" />
+                <data android:scheme="android_secret_code" android:host="1234" /> <!-- Abrir app -->
+                <data android:scheme="android_secret_code" android:host="9999" /> <!-- Purga emergencia -->
+            </intent-filter>
+        </receiver>
+
+        <!-- WATCHDOG FOREGROUND SERVICE -->
+        <service
+            android:name=".service.WatchdogForegroundService"
+            android:foregroundServiceType="specialUse"
+            android:exported="false">
+            <property
+                android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
+                android:value="mdm_watchdog_accessibility_policy_monitor" />
+        </service>
+
+        <!-- FIREBASE MESSAGING SERVICE -->
+        <service
+            android:name=".service.LockSuiteFirebaseService"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="com.google.firebase.MESSAGING_EVENT" />
+            </intent-filter>
+        </service>
+
+        <!-- ACCESSIBILITY SERVICE (Anti-evasión en Ajustes) -->
+        <service
+            android:name="com.ejemplo.locksuite.service.LockSuiteAccessibilityService"
+            android:permission="android.permission.BIND_ACCESSIBILITY_SERVICE"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.view.accessibility.AccessibilityService" />
+            </intent-filter>
+            <meta-data
+                android:name="android.accessibilityservice"
+                android:resource="@xml/accessibility_service_config" />
+        </service>
+
+
+        <!-- KOSHER VPN SERVICE (Filtrado de Red Capa 3) -->
+        <service
+            android:name="com.ejemplo.locksuite.service.KosherVpnService"
+            android:permission="android.permission.BIND_VPN_SERVICE"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="android.net.VpnService" />
+            </intent-filter>
+        </service>
+
+        <!-- QUICK SETTINGS TILE SERVICE (Para abrir en cualquier celular desde el panel rápido) -->
+        <service
+            android:name=".service.LockSuiteTileService"
+            android:icon="@drawable/ic_logo"
+            android:label="LockSuite MDM"
+            android:permission="android.permission.BIND_QUICK_SETTINGS_TILE"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.service.quicksettings.action.QS_TILE" />
+            </intent-filter>
+        </service>
+
+        <!-- LAUNCHER ALIAS (Modo visible — Habilitado por defecto) -->
+        <activity-alias
+            android:name=".LauncherAlias"
+            android:targetActivity=".ui.auth.LoginActivity"
+            android:enabled="true"
+            android:icon="@drawable/ic_logo"
+            android:label="LockSuite MDM"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity-alias>
+
+        <!-- LOGIN ACTIVITY (Sin alias para permitir modo Stealth, accesible desde Ajustes) -->
+        <activity
+            android:name=".ui.auth.LoginActivity"
+            android:exported="true"
+            android:showWhenLocked="true"
+            android:turnScreenOn="true">
+            <!--
+                APPLICATION_PREFERENCES: estándar de Android.
+                Aparece como botón de engranaje ⚙️ en Ajustes → Aplicaciones → LockSuite MDM.
+                Compatible con Android stock, Pixel, OnePlus, Oppo y la mayoría de OEMs.
+            -->
+            <intent-filter>
+                <action android:name="android.intent.action.APPLICATION_PREFERENCES" />
+                <category android:name="android.intent.category.DEFAULT" />
+            </intent-filter>
+            <!--
+                MANAGE_APP_SETTINGS: usado por Samsung One UI, Xiaomi MIUI/HyperOS
+                y algunos otros OEMs que no implementan APPLICATION_PREFERENCES.
+                Agrega un botón extra "Ajustes" en la pantalla de detalle de la app.
+            -->
+            <intent-filter>
+                <action android:name="android.intent.action.MANAGE_APP_SETTINGS" />
+                <category android:name="android.intent.category.DEFAULT" />
+            </intent-filter>
+            <!--
+                DEEP LINK (Custom Scheme): Permite abrir la app buscando o haciendo click
+                en el enlace "locksuite://open" desde cualquier navegador o app de notas.
+            -->
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="locksuite" android:host="open" />
+            </intent-filter>
+        </activity>
+
+        <!-- SETUP PIN ACTIVITY -->
+        <activity
+            android:name=".ui.auth.SetupPinActivity"
+            android:exported="false"
+            android:showWhenLocked="true"
+            android:turnScreenOn="true" />
+
+        <!-- DASHBOARD ACTIVITY -->
+        <activity
+            android:name=".ui.dashboard.DashboardActivity"
+            android:exported="false" />
+
+        <!-- EMERGENCY ACTIVITY (Menú rojo de purga) -->
+        <activity
+            android:name=".ui.emergency.EmergencyActivity"
+            android:exported="false"
+            android:showWhenLocked="true"
+            android:turnScreenOn="true" />
+
+        <!-- BLOCK ACCESSIBILITY ACTIVITY -->
+        <activity
+            android:name=".ui.emergency.BlockAccessibilityActivity"
+            android:exported="false"
+            android:showWhenLocked="true"
+            android:turnScreenOn="true" />
+
+        <!-- RECEIVER FOR UNINSTALL CALLBACKS -->
+        <receiver
+            android:name=".receiver.UninstallReceiver"
+            android:exported="false" />
+
+    </application>
+
+</manifest>

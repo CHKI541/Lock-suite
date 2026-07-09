@@ -1,0 +1,28 @@
+*.iml
+.gradle
+/local.properties
+/.idea/caches
+/.idea/libraries
+/.idea/modules.xml
+/.idea/workspace.xml
+/.idea/navEditor.xml
+/.idea/assetWizardSettings.xml
+.DS_Store
+/build
+/captures
+.externalNativeBuild
+.cxx
+# Keystores and private signing keys
+*.jks
+*.keystore
+
+# Firebase Service Account Credentials & Config
+*firebase-adminsdk*.json
+*.service-account.json
+*.pem
+*.key
+.firebase/
+node_modules/
+functions/node_modules/
+.runtimeconfig.json
+google-services.json

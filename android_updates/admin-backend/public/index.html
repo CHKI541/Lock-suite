@@ -1,0 +1,112 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>LockSuite Kosher — Panel de administración</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+
+  <div id="login-screen" class="screen">
+    <div class="card login-card">
+      <h1>LockSuite <span class="accent">Kosher</span></h1>
+      <p class="subtitle">Panel de administración remota</p>
+      <input type="email" id="email-input" placeholder="Email" autocomplete="username" />
+      <input type="password" id="password-input" placeholder="Contraseña" autocomplete="current-password" />
+      <button id="login-button">Iniciar sesión</button>
+      <p id="login-error" class="error-text"></p>
+      <p class="hint">Las cuentas de administrador se crean desde Firebase Console → Authentication. No hay alta pública.</p>
+    </div>
+  </div>
+
+  <div id="dashboard-screen" class="screen hidden">
+    <header>
+      <h1>LockSuite <span class="accent">Kosher</span></h1>
+      <div class="header-actions">
+        <button id="refresh-button" class="secondary">Actualizar</button>
+        <button id="logout-button" class="secondary">Cerrar sesión</button>
+      </div>
+    </header>
+    <p id="global-error" class="error-text"></p>
+    <main id="devices-container">
+      <p class="loading-text">Cargando dispositivos…</p>
+    </main>
+  </div>
+
+  <!-- Plantilla de una tarjeta de dispositivo (se clona por JS) -->
+  <template id="device-card-template">
+    <div class="card device-card">
+      <div class="device-header">
+        <div>
+          <h2 class="device-model"></h2>
+          <p class="device-id"></p>
+        </div>
+        <span class="badge kiosk-badge"></span>
+      </div>
+
+      <p class="last-seen"></p>
+      <p class="trust-row">
+        <span class="trust-status"></span>
+        <button class="link-btn forget-pin-btn hidden">Olvidar PIN</button>
+      </p>
+
+      <div class="action-row">
+        <button class="action-btn lock-btn">🔒 Bloquear ahora</button>
+      </div>
+
+      <div class="toggle-grid">
+        <label class="toggle-row">
+          <span>Wi-Fi bloqueado</span>
+          <input type="checkbox" class="toggle-wifi" />
+        </label>
+        <label class="toggle-row">
+          <span>Bluetooth bloqueado</span>
+          <input type="checkbox" class="toggle-bluetooth" />
+        </label>
+        <label class="toggle-row">
+          <span>VPN bloqueada</span>
+          <input type="checkbox" class="toggle-vpn" />
+        </label>
+        <label class="toggle-row">
+          <span>Instalar apps bloqueado</span>
+          <input type="checkbox" class="toggle-install" />
+        </label>
+      </div>
+
+      <div class="allowlist-row">
+        <label class="allowlist-label">Apps permitidas (paquetes separados por coma)</label>
+        <textarea class="allowlist-input" rows="2" placeholder="com.whatsapp, com.android.dialer, com.google.android.contacts"></textarea>
+        <button class="action-btn secondary allowlist-btn">Actualizar lista de apps</button>
+      </div>
+
+      <p class="card-status"></p>
+    </div>
+  </template>
+
+  <!-- Modal de PIN: uno solo, reutilizado para cualquier dispositivo/acción -->
+  <div id="pin-modal" class="modal-overlay hidden">
+    <div class="card modal-card">
+      <h2>PIN de administrador del celular</h2>
+      <p class="modal-device-name subtitle"></p>
+      <input type="password" id="pin-modal-input" placeholder="PIN configurado en ese celular" autocomplete="off" inputmode="numeric" />
+      <label class="toggle-row remember-row">
+        <span>No volver a pedirlo en este dispositivo</span>
+        <input type="checkbox" id="pin-modal-remember" />
+      </label>
+      <p id="pin-modal-error" class="error-text"></p>
+      <div class="modal-actions">
+        <button id="pin-modal-cancel" class="secondary">Cancelar</button>
+        <button id="pin-modal-confirm">Confirmar</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Firebase SDK compat: sin build step, se puede editar el panel con solo un editor de texto -->
+  <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-functions-compat.js"></script>
+  <script src="firebase-config.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>

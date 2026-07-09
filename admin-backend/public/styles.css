@@ -1,0 +1,525 @@
+:root {
+  --navy-dark: #0B192C;
+  --navy-medium: #1E3E62;
+  --navy-light: #2C5282;
+  --accent-orange: #F1C40F;
+  --text-light: #FFFFFF;
+  --text-gray: #B0BEC5;
+  --alert-red: #C0392B;
+  --success-green: #27AE60;
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  background: var(--navy-dark);
+  color: var(--text-light);
+  min-height: 100vh;
+}
+
+.hidden { display: none !important; }
+
+h1 { font-size: 22px; margin: 0; }
+.accent { color: var(--accent-orange); }
+.subtitle { color: var(--text-gray); margin: 4px 0 24px; font-size: 14px; }
+
+.screen { min-height: 100vh; padding: 24px; }
+
+#login-screen { display: flex; align-items: center; justify-content: center; }
+
+.card { background: var(--navy-medium); border-radius: 16px; padding: 24px; }
+.login-card { width: 100%; max-width: 340px; }
+
+input, textarea {
+  width: 100%;
+  padding: 12px;
+  margin-bottom: 12px;
+  border-radius: 10px;
+  border: 1px solid var(--navy-light);
+  background: var(--navy-dark);
+  color: var(--text-light);
+  font-size: 14px;
+}
+
+textarea { resize: vertical; font-family: inherit; }
+
+button {
+  padding: 12px;
+  border-radius: 10px;
+  border: none;
+  background: var(--accent-orange);
+  color: var(--navy-dark);
+  font-weight: bold;
+  font-size: 14px;
+  cursor: pointer;
+  width: 100%;
+}
+
+button.secondary { background: var(--navy-light); color: var(--text-light); width: auto; padding: 8px 16px; }
+
+/* Botón de Google premium */
+button.google-btn {
+  background: #FFFFFF;
+  color: #757575;
+  border: 1px solid #E0E0E0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  box-shadow: 0 2px 4px 0 rgba(0,0,0,0.1);
+  transition: background-color .2s, box-shadow .2s;
+}
+button.google-btn:hover {
+  background: #EEEEEE;
+  box-shadow: 0 4px 6px 0 rgba(0,0,0,0.15);
+}
+button.google-btn svg {
+  display: block;
+}
+
+/* Divisor decorativo */
+.divider {
+  display: flex;
+  align-items: center;
+  text-align: center;
+  margin: 16px 0;
+  color: var(--text-gray);
+  font-size: 13px;
+}
+.divider::before, .divider::after {
+  content: '';
+  flex: 1;
+  border-bottom: 1px solid var(--navy-light);
+}
+.divider:not(:empty)::before {
+  margin-right: .75em;
+}
+.divider:not(:empty)::after {
+  margin-left: .75em;
+}
+button:hover { opacity: 0.9; }
+button:disabled { opacity: 0.5; cursor: not-allowed; }
+
+.error-text { color: var(--alert-red); font-size: 13px; min-height: 16px; }
+
+.hint { color: var(--text-gray); font-size: 11px; margin-top: 16px; line-height: 1.4; }
+
+header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 20px;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.header-actions { display: flex; gap: 8px; }
+
+.loading-text { color: var(--text-gray); }
+
+#devices-container {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+  gap: 16px;
+}
+
+.device-header { display: flex; justify-content: space-between; align-items: flex-start; gap: 8px; }
+.device-model { font-size: 16px; margin: 0; }
+.device-id { font-size: 11px; color: var(--text-gray); margin: 4px 0 0; word-break: break-all; }
+
+.badge {
+  font-size: 11px;
+  padding: 4px 10px;
+  border-radius: 20px;
+  font-weight: bold;
+  white-space: nowrap;
+}
+
+.badge.active { background: var(--success-green); color: white; }
+.badge.inactive { background: var(--navy-light); color: var(--text-gray); }
+.badge.warning { background: var(--accent-orange); color: var(--navy-dark); }
+
+.last-seen { font-size: 12px; color: var(--text-gray); margin: 8px 0 16px; }
+
+.action-row { margin-bottom: 12px; }
+.action-btn.lock-btn { background: var(--alert-red); color: white; }
+
+.toggle-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-bottom: 16px;
+  padding: 12px;
+  background: var(--navy-dark);
+  border-radius: 10px;
+}
+
+.toggle-row { display: flex; justify-content: space-between; align-items: center; font-size: 13px; cursor: pointer; }
+.toggle-row input { width: auto; margin: 0; }
+
+.allowlist-row { margin-bottom: 8px; }
+.allowlist-label { font-size: 12px; color: var(--text-gray); display: block; margin-bottom: 6px; }
+.allowlist-btn { margin-top: 8px; }
+
+.card-status { font-size: 12px; min-height: 16px; margin: 8px 0 0; color: var(--accent-orange); }
+
+.trust-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 12px;
+  color: var(--text-gray);
+  margin: 0 0 12px;
+}
+
+.link-btn {
+  background: none;
+  border: none;
+  color: var(--accent-orange);
+  font-size: 12px;
+  width: auto;
+  padding: 0;
+  text-decoration: underline;
+}
+
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.6);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  z-index: 100;
+}
+
+.modal-card { width: 100%; max-width: 360px; }
+.modal-card h2 { font-size: 17px; }
+
+.remember-row { margin: 4px 0 16px; cursor: pointer; }
+.remember-row span { font-size: 13px; color: var(--text-gray); }
+
+.modal-actions { display: flex; gap: 10px; }
+.modal-actions button { flex: 1; }
+
+/* LAYOUT CON SIDEBAR */
+.dashboard-layout {
+  display: flex;
+  gap: 20px;
+  position: relative;
+  min-height: calc(100vh - 48px);
+}
+
+.main-content {
+  flex: 1;
+  transition: margin-right 0.3s ease;
+}
+
+/* SIDEBAR SLIDE-OUT */
+.sidebar {
+  position: fixed;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  width: 460px;
+  background: #112240; /* Tono azul más oscuro para contraste */
+  border-left: 1px solid var(--navy-light);
+  box-shadow: -5px 0 25px rgba(0, 0, 0, 0.5);
+  display: flex;
+  flex-direction: column;
+  z-index: 90;
+  transition: transform 0.3s ease;
+  transform: translateX(0);
+}
+
+.sidebar.hidden {
+  transform: translateX(100%);
+  display: flex !important; /* Permitir que la animación funcione y se oculte con translate */
+  pointer-events: none;
+}
+
+.sidebar-header {
+  padding: 20px;
+  background: var(--navy-dark);
+  border-bottom: 1px solid var(--navy-light);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.sidebar-header h2 {
+  font-size: 18px;
+  margin: 0;
+  color: var(--accent-orange);
+}
+
+.close-btn {
+  background: none;
+  border: none;
+  color: var(--text-light);
+  font-size: 28px;
+  cursor: pointer;
+  line-height: 1;
+  padding: 0 4px;
+}
+.close-btn:hover {
+  color: var(--accent-orange);
+}
+
+/* PESTAÑAS DEL SIDEBAR */
+.sidebar-tabs {
+  display: flex;
+  background: var(--navy-dark);
+  border-bottom: 1px solid var(--navy-light);
+}
+
+.tab-btn {
+  flex: 1;
+  background: none;
+  color: var(--text-gray);
+  border: none;
+  border-radius: 0;
+  padding: 14px;
+  font-weight: bold;
+  font-size: 13px;
+  cursor: pointer;
+  border-bottom: 3px solid transparent;
+  transition: color 0.2s, border-color 0.2s;
+}
+
+.tab-btn:hover {
+  color: var(--text-light);
+  opacity: 1;
+}
+
+.tab-btn.active {
+  color: var(--accent-orange);
+  border-bottom-color: var(--accent-orange);
+}
+
+/* CONTENIDO DEL SIDEBAR */
+.sidebar-content {
+  flex: 1;
+  overflow-y: auto;
+  padding: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.tab-panel {
+  display: none;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.tab-panel.active {
+  display: flex;
+}
+
+.sidebar-card {
+  background: var(--navy-medium);
+  border-radius: 12px;
+  padding: 16px;
+  border: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.sidebar-card h3 {
+  margin: 0 0 12px;
+  font-size: 14px;
+  color: var(--accent-orange);
+  font-weight: bold;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  padding-bottom: 6px;
+}
+
+.input-group {
+  display: flex;
+  gap: 8px;
+}
+
+.input-group input {
+  margin-bottom: 0;
+}
+
+.input-group button {
+  width: auto;
+  white-space: nowrap;
+}
+
+.toggle-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+/* LISTA DE APLICACIONES */
+.search-box input {
+  margin-bottom: 0;
+}
+
+.apps-list-container {
+  max-height: 380px;
+  overflow-y: auto;
+  background: var(--navy-dark);
+  border-radius: 10px;
+  padding: 8px;
+  border: 1px solid var(--navy-light);
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.app-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px;
+  background: var(--navy-medium);
+  border-radius: 8px;
+  gap: 10px;
+}
+
+.app-meta {
+  flex: 1;
+  min-width: 0;
+}
+
+.app-title {
+  font-size: 13px;
+  font-weight: bold;
+  margin: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  color: var(--text-light);
+}
+
+.app-pkg {
+  font-size: 10px;
+  color: var(--text-gray);
+  margin: 2px 0 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.app-toggles {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.app-toggle-btn {
+  background: var(--navy-dark);
+  border: 1px solid var(--navy-light);
+  color: var(--text-gray);
+  font-size: 10px;
+  padding: 4px 8px;
+  border-radius: 6px;
+  width: auto;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.app-toggle-btn.active-block {
+  background: var(--alert-red);
+  color: white;
+  border-color: var(--alert-red);
+}
+
+.app-toggle-btn.active-suspend {
+  background: #D35400;
+  color: white;
+  border-color: #D35400;
+}
+
+.app-toggle-btn.active-webview {
+  background: #7D3C98;
+  color: white;
+  border-color: #7D3C98;
+}
+
+/* Play Store Premium Card */
+.playstore-card {
+  border: 2px solid var(--accent-orange);
+  background: #1f2d3d;
+}
+
+.playstore-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 12px;
+}
+
+.playstore-header h3 {
+  margin: 0;
+  border-bottom: none;
+  padding-bottom: 0;
+}
+
+/* Tarjeta del dispositivo simple */
+.device-card {
+  transition: transform 0.2s, box-shadow 0.2s;
+  border: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.device-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+  border-color: var(--accent-orange);
+}
+
+.card-action-bar {
+  margin-top: 14px;
+}
+
+.view-details-btn {
+  background: var(--navy-light);
+  color: white;
+}
+
+/* Responsividad para pantallas pequeñas */
+@media (max-width: 768px) {
+  .sidebar {
+    width: 100%;
+  }
+}
+
+/* Filtros de aplicaciones en el sidebar */
+.apps-filters {
+  display: flex;
+  gap: 6px;
+  margin-bottom: 14px;
+  flex-wrap: wrap;
+}
+
+.filter-chip {
+  padding: 5px 12px;
+  border-radius: 20px;
+  font-size: 11px;
+  cursor: pointer;
+  border: 1px solid var(--navy-light);
+  background-color: rgba(255, 255, 255, 0.05);
+  color: var(--text-gray);
+  transition: all 0.2s ease;
+  width: auto;
+}
+
+.filter-chip:hover {
+  background-color: rgba(255, 255, 255, 0.1);
+  color: var(--text-light);
+}
+
+.filter-chip.active {
+  background-color: var(--accent-orange);
+  color: var(--navy-dark);
+  border-color: var(--accent-orange);
+  font-weight: bold;
+}
+
+
+

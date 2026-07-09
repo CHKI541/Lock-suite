@@ -1,0 +1,125 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    package="com.ejemplo.locksuite">
+
+    <uses-permission android:name="android.permission.INTERNET" />
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <!--
+        Revisá contra tu AndroidManifest.xml original si tenías algún permiso
+        adicional específico (por ejemplo SYSTEM_ALERT_WINDOW si el Watchdog
+        dibuja algo sobre otras apps) — no lo dupliqué acá porque ese archivo
+        no cambió de contenido, solo agregué lo que necesitan las pantallas
+        nuevas de este parche.
+    -->
+
+    <application
+        android:allowBackup="false"
+        android:label="LockSuite Kosher"
+        android:icon="@mipmap/ic_launcher"
+        android:theme="@style/Theme.LockSuite">
+
+        <receiver
+            android:name=".receiver.DeviceAdminReceiver"
+            android:permission="android.permission.BIND_DEVICE_ADMIN"
+            android:exported="true">
+            <meta-data
+                android:name="android.app.device_admin"
+                android:resource="@xml/device_admin_policies" />
+            <intent-filter>
+                <action android:name="android.app.action.DEVICE_ADMIN_ENABLED" />
+            </intent-filter>
+        </receiver>
+
+        <receiver
+            android:name=".receiver.BootReceiver"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.BOOT_COMPLETED" />
+                <action android:name="android.intent.action.LOCKED_BOOT_COMPLETED" />
+            </intent-filter>
+        </receiver>
+
+        <!--
+            Solo queda el código de recuperación de emergencia (9999).
+            Se sacó el 1234 ("reabrir app oculta") porque el ícono ya no se
+            oculta nunca — no hace falta un código secreto para algo visible.
+        -->
+        <receiver
+            android:name=".receiver.SecretCodeReceiver"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.provider.Telephony.SECRET_CODE" />
+                <data android:scheme="android_secret_code" android:host="9999" />
+            </intent-filter>
+        </receiver>
+
+        <service
+            android:name=".service.WatchdogForegroundService"
+            android:exported="false"
+            android:foregroundServiceType="specialUse" />
+
+        <service
+            android:name=".service.LockSuiteFirebaseService"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="com.google.firebase.MESSAGING_EVENT" />
+            </intent-filter>
+        </service>
+
+        <activity
+            android:name=".ui.onboarding.ConsentActivity"
+            android:exported="false"
+            android:showWhenLocked="true"
+            android:turnScreenOn="true" />
+
+        <activity
+            android:name=".ui.auth.SetupPinActivity"
+            android:exported="false"
+            android:showWhenLocked="true"
+            android:turnScreenOn="true" />
+
+        <activity
+            android:name=".ui.auth.LoginActivity"
+            android:exported="true"
+            android:showWhenLocked="true"
+            android:turnScreenOn="true">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity>
+
+        <activity
+            android:name=".ui.dashboard.DashboardActivity"
+            android:exported="false" />
+
+        <activity
+            android:name=".ui.emergency.EmergencyActivity"
+            android:exported="false"
+            android:showWhenLocked="true"
+            android:turnScreenOn="true" />
+
+        <!--
+            NUEVO: reemplaza al launcher/Inicio del dispositivo cuando el
+            modo kiosco está activo. Se registra como preferida vía
+            PolicyManager.registerKioskLauncher() (privilegio de Device
+            Owner), así que Android no le pregunta al usuario "con qué
+            app querés abrir esto".
+        -->
+        <activity
+            android:name=".ui.kiosk.KioskLauncherActivity"
+            android:exported="true"
+            android:launchMode="singleTask"
+            android:excludeFromRecents="true">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.HOME" />
+                <category android:name="android.intent.category.DEFAULT" />
+            </intent-filter>
+        </activity>
+
+    </application>
+</manifest>

@@ -1,0 +1,252 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>LockSuite Kosher — Panel de administración</title>
+  <link rel="stylesheet" href="styles.css?v=2" />
+</head>
+<body>
+
+  <div id="login-screen" class="screen">
+    <div class="card login-card">
+      <h1>LockSuite <span class="accent">Kosher</span></h1>
+      <p class="subtitle">Panel de administración remota</p>
+      <input type="email" id="email-input" placeholder="Email" autocomplete="username" />
+      <input type="password" id="password-input" placeholder="Contraseña" autocomplete="current-password" />
+      <button id="login-button">Iniciar sesión</button>
+      
+      <div class="divider"><span>o</span></div>
+      
+      <button id="google-login-button" class="google-btn">
+        <svg viewBox="0 0 24 24" width="18" height="18" xmlns="http://www.w3.org/2000/svg">
+          <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4"/>
+          <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.56-2.77c-.98.66-2.23 1.06-3.72 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/>
+          <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z" fill="#FBBC05"/>
+          <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z" fill="#EA4335"/>
+        </svg>
+        Iniciar sesión con Google
+      </button>
+
+      <p id="login-error" class="error-text"></p>
+      <p class="hint">Las cuentas de administrador se crean desde Firebase Console → Authentication.</p>
+    </div>
+  </div>
+
+  <div id="dashboard-screen" class="screen hidden">
+    <div class="dashboard-layout">
+      <div class="main-content">
+        <header>
+          <h1>LockSuite <span class="accent">Kosher</span></h1>
+          <div class="header-actions">
+            <button id="refresh-button" class="secondary">Actualizar</button>
+            <button id="logout-button" class="secondary">Cerrar sesión</button>
+          </div>
+        </header>
+        <p id="global-error" class="error-text"></p>
+        <main id="devices-container">
+          <p class="loading-text">Cargando dispositivos…</p>
+        </main>
+      </div>
+      
+      <!-- Sidebar de administración de dispositivo -->
+      <div id="device-sidebar" class="sidebar hidden">
+        <div class="sidebar-header">
+          <div>
+            <h2 id="sidebar-device-name">Cargando...</h2>
+            <p id="sidebar-device-id" class="device-id"></p>
+          </div>
+          <button id="sidebar-close-btn" class="close-btn">&times;</button>
+        </div>
+
+        <div class="sidebar-tabs">
+          <button class="tab-btn active" data-tab="panel-policies">Políticas</button>
+          <button class="tab-btn" data-tab="panel-apps">Aplicaciones</button>
+          <button class="tab-btn" data-tab="panel-actions">Acciones</button>
+        </div>
+
+        <div class="sidebar-content">
+          <!-- Pestaña 1: Políticas -->
+          <div id="panel-policies" class="tab-panel active">
+            <!-- Nombre del celular -->
+            <div class="sidebar-card">
+              <h3>Identificación</h3>
+              <div class="input-group">
+                <input type="text" id="device-name-input" placeholder="Nombre personalizado (ej: Celular Eli)" />
+                <button id="save-name-btn" class="action-btn">Guardar</button>
+              </div>
+            </div>
+
+            <!-- Políticas de Sistema -->
+            <div class="sidebar-card">
+              <h3>Políticas de Sistema (Device Owner)</h3>
+              <div class="toggle-list">
+                <label class="toggle-row"><span>Bloquear Restauración de Fábrica</span><input type="checkbox" class="policy-switch" data-policy="factoryResetBlocked" /></label>
+                <label class="toggle-row"><span>Bloquear Instalación de Apps</span><input type="checkbox" class="policy-switch" data-policy="installAppsBlocked" /></label>
+                <label class="toggle-row"><span>Bloquear Desinstalación de Apps</span><input type="checkbox" class="policy-switch" data-policy="uninstallAppsBlocked" /></label>
+                <label class="toggle-row"><span>Bloquear ADB y Opciones de Desarrollador</span><input type="checkbox" class="policy-switch" data-policy="adbBlocked" /></label>
+                <label class="toggle-row"><span>Bloquear Cambio de Usuario</span><input type="checkbox" class="policy-switch" data-policy="userSwitchBlocked" /></label>
+                <label class="toggle-row"><span>Bloquear Modificación de Cuentas</span><input type="checkbox" class="policy-switch" data-policy="modifyAccountsBlocked" /></label>
+                <label class="toggle-row"><span>Bloquear Reinicio Seguro (Safe Boot)</span><input type="checkbox" class="policy-switch" data-policy="safeBootBlocked" /></label>
+                <label class="toggle-row"><span>Bloquear Orígenes Desconocidos (APK)</span><input type="checkbox" class="policy-switch" data-policy="unknownSourcesBlocked" /></label>
+                <label class="toggle-row"><span>Bloquear Ajustes de Red / WiFi / Datos</span><input type="checkbox" class="policy-switch" data-policy="wifiBlocked" /></label>
+                <label class="toggle-row"><span>Bloquear Ajustes de VPN</span><input type="checkbox" class="policy-switch" data-policy="vpnBlocked" /></label>
+                <label class="toggle-row"><span>Bloquear Control de Apps</span><input type="checkbox" class="policy-switch" data-policy="appsControlBlocked" /></label>
+                <label class="toggle-row"><span>Bloquear Ajuste de Volumen</span><input type="checkbox" class="policy-switch" data-policy="adjustVolumeBlocked" /></label>
+              </div>
+            </div>
+
+            <!-- Control de Hardware y Pantalla -->
+            <div class="sidebar-card">
+              <h3>Control de Hardware y Pantalla</h3>
+              <div class="toggle-list">
+                <label class="toggle-row"><span>Deshabilitar Cámara Física</span><input type="checkbox" class="policy-switch" data-policy="cameraDisabled" /></label>
+                <label class="toggle-row"><span>Bloquear Captura de Pantalla</span><input type="checkbox" class="policy-switch" data-policy="screenCaptureBlocked" /></label>
+                <label class="toggle-row"><span>Deshabilitar Barra de Estado</span><input type="checkbox" class="policy-switch" data-policy="statusBarDisabled" /></label>
+                <label class="toggle-row"><span>Deshabilitar Bloqueo de Pantalla (Keyguard)</span><input type="checkbox" class="policy-switch" data-policy="keyguardDisabled" /></label>
+              </div>
+            </div>
+
+            <!-- Conectividad y Filtros -->
+            <div class="sidebar-card">
+              <h3>Conectividad y Filtros</h3>
+              <div class="toggle-list">
+                <label class="toggle-row"><span>Bloquear Todo el Internet</span><input type="checkbox" class="policy-switch" data-policy="internetBlocked" /></label>
+                <label class="toggle-row"><span>Bloquear Bluetooth</span><input type="checkbox" class="policy-switch" data-policy="bluetoothBlocked" /></label>
+                <label class="toggle-row"><span>Bloquear Compartir por Bluetooth</span><input type="checkbox" class="policy-switch" data-policy="bluetoothSharingBlocked" /></label>
+                <label class="toggle-row"><span>Bloquear Montaje de Medios Externos</span><input type="checkbox" class="policy-switch" data-policy="externalMediaBlocked" /></label>
+                <label class="toggle-row"><span>Bloquear Zona WiFi / Tethering</span><input type="checkbox" class="policy-switch" data-policy="tetheringBlocked" /></label>
+                <label class="toggle-row"><span>Filtro de Anuncios DNS (AdBlock)</span><input type="checkbox" class="policy-switch" data-policy="adBlockingEnabled" /></label>
+                <label class="toggle-row"><span>Modo Oculto (Stealth Mode)</span><input type="checkbox" class="policy-switch" data-policy="stealthModeEnabled" /></label>
+              </div>
+            </div>
+
+            <!-- Inteligencia Artificial -->
+            <div class="sidebar-card">
+              <h3>Inteligencia Artificial</h3>
+              <div class="toggle-list">
+                <label class="toggle-row"><span>Activar Modo IA (Filtro de Siluetas)</span><input type="checkbox" class="policy-switch" data-policy="aiModeEnabled" /></label>
+                <label class="toggle-row"><span>Bloqueo de Imágenes en Maps</span><input type="checkbox" class="policy-switch" data-policy="mapsImageBlockingEnabled" /></label>
+              </div>
+            </div>
+            <!-- Filtros de WhatsApp -->
+            <div class="sidebar-card">
+              <h3>Filtros de WhatsApp</h3>
+              <div class="toggle-list">
+                <label class="toggle-row"><span>Bloquear Estados (WhatsApp)</span><input type="checkbox" class="policy-switch" data-policy="whatsappBlockStatus" /></label>
+                <label class="toggle-row"><span>Bloquear Canales (WhatsApp)</span><input type="checkbox" class="policy-switch" data-policy="whatsappBlockChannels" /></label>
+              </div>
+            </div>
+          </div>
+
+          <!-- Pestaña 2: Aplicaciones -->
+          <div id="panel-apps" class="tab-panel">
+            <!-- Google Play Store (Control Separado Principal) -->
+            <div class="sidebar-card playstore-card">
+              <div class="playstore-header">
+                <h3>Google Play Store</h3>
+                <span class="badge kiosk-badge active">Control Principal</span>
+              </div>
+              <div class="toggle-list">
+                <label class="toggle-row"><span>Bloqueo Total (Ocultar)</span><input type="checkbox" id="playstore-hidden" /></label>
+                <label class="toggle-row"><span>Suspensión</span><input type="checkbox" id="playstore-suspended" /></label>
+              </div>
+            </div>
+
+            <!-- Buscador de Apps -->
+            <div class="search-box">
+              <input type="text" id="app-search-input" placeholder="Buscar app por nombre o paquete..." />
+            </div>
+
+            <!-- Filtros de Aplicaciones -->
+            <div class="apps-filters">
+              <button class="filter-chip active" data-filter="all">Todas</button>
+              <button class="filter-chip" data-filter="blocked">Bloqueadas (<span id="blocked-apps-count">0</span>)</button>
+              <button class="filter-chip" data-filter="user">Usuario</button>
+              <button class="filter-chip" data-filter="system">Sistema</button>
+            </div>
+
+            <!-- Contenedor de lista de apps instaladas -->
+            <div id="sidebar-apps-list" class="apps-list-container">
+              <p class="loading-text">Cargando aplicaciones del dispositivo…</p>
+            </div>
+
+            <!-- Campo de paquetes permitidos -->
+            <div class="sidebar-card">
+              <h3>Apps permitidas (paquetes separados por coma)</h3>
+              <textarea id="sidebar-allowlist-input" rows="2" placeholder="com.whatsapp, com.android.dialer"></textarea>
+              <button id="sidebar-allowlist-btn" class="action-btn secondary">Actualizar lista</button>
+            </div>
+          </div>
+
+          <!-- Pestaña 3: Acciones -->
+          <div id="panel-actions" class="tab-panel">
+            <div class="sidebar-card">
+              <h3>Comandos Directos</h3>
+              <button id="sidebar-lock-btn" class="action-btn lock-btn">🔒 Bloquear dispositivo ahora</button>
+            </div>
+            <div class="sidebar-card">
+              <h3>Seguridad y PIN</h3>
+              <p id="sidebar-trust-status"></p>
+              <button id="sidebar-forget-pin-btn" class="action-btn secondary">Olvidar confianza del PIN</button>
+            </div>
+            <div class="sidebar-card">
+              <h3>Cambiar PIN de Administrador</h3>
+              <div class="input-group">
+                <input type="password" id="sidebar-new-pin-input" placeholder="Nuevo PIN (4-16 dígitos)" autocomplete="off" inputmode="numeric" />
+                <button id="sidebar-change-pin-btn" class="action-btn">Cambiar</button>
+              </div>
+            </div>
+          </div>
+          
+          <p id="sidebar-status-msg" class="card-status"></p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Plantilla de una tarjeta de dispositivo (se clona por JS) -->
+  <template id="device-card-template">
+    <div class="card device-card">
+      <div class="device-header">
+        <div>
+          <h2 class="device-name"></h2>
+          <p class="device-model-label"></p>
+          <p class="device-id"></p>
+        </div>
+        <span class="badge status-badge"></span>
+      </div>
+      <p class="last-seen"></p>
+      <div class="card-action-bar">
+        <button class="action-btn view-details-btn">⚙️ Administrar Celular</button>
+      </div>
+    </div>
+  </template>
+
+  <!-- Modal de PIN: uno solo, reutilizado para cualquier dispositivo/acción -->
+  <div id="pin-modal" class="modal-overlay hidden">
+    <div class="card modal-card">
+      <h2>PIN de administrador del celular</h2>
+      <p class="modal-device-name subtitle"></p>
+      <input type="password" id="pin-modal-input" placeholder="PIN configurado en ese celular" autocomplete="off" inputmode="numeric" />
+      <label class="toggle-row remember-row">
+        <span>No volver a pedirlo en este dispositivo</span>
+        <input type="checkbox" id="pin-modal-remember" />
+      </label>
+      <p id="pin-modal-error" class="error-text"></p>
+      <div class="modal-actions">
+        <button id="pin-modal-cancel" class="secondary">Cancelar</button>
+        <button id="pin-modal-confirm">Confirmar</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Firebase SDK compat: sin build step, se puede editar el panel con solo un editor de texto -->
+  <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-functions-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js"></script>
+  <script src="firebase-config.js"></script>
+  <script src="app.js?v=2"></script>
+</body>
+</html>
