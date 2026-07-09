@@ -88,7 +88,7 @@ function renderDevicesList(e) {
             d = field(t, "model", "Modelo desconocido"),
             s = field(t, "lastSeen", null),
             fcm = field(t, "fcmToken", ""),
-            o = s && Date.now() - s < 12e4;
+            o = s && Date.now() - s < 3e5;
         n.querySelector(".device-name").textContent = i, n.querySelector(".device-model-label").textContent = d, n.querySelector(".device-id").textContent = e;
         const c = n.querySelector(".status-badge");
         if (o && fcm) {
