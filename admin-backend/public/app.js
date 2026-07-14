@@ -26,6 +26,7 @@ const auth = firebase.auth(),
     sidebarAllowlistInput = document.getElementById("sidebar-allowlist-input"),
     sidebarAllowlistBtn = document.getElementById("sidebar-allowlist-btn"),
     sidebarLockBtn = document.getElementById("sidebar-lock-btn"),
+    sidebarUnsuspendAllBtn = document.getElementById("sidebar-unsuspend-all-btn"),
     sidebarTrustStatus = document.getElementById("sidebar-trust-status"),
     sidebarForgetPinBtn = document.getElementById("sidebar-forget-pin-btn"),
     sidebarArchiveBtn = document.getElementById("sidebar-archive-btn"),
@@ -505,6 +506,10 @@ saveNameBtn.addEventListener("click", async () => {
     sidebarAllowlistBtn.disabled = !0, runCommandOnDevice(selectedDeviceId, "UPDATE_ALLOWLIST", e, sidebarAllowlistBtn);
 }), sidebarLockBtn.addEventListener("click", () => {
     sidebarLockBtn.disabled = !0, runCommandOnDevice(selectedDeviceId, "LOCK_DEVICE", null, sidebarLockBtn)
+}), sidebarUnsuspendAllBtn.addEventListener("click", () => {
+    if (confirm("¿Seguro que querés desbloquear todas las aplicaciones de este celular?")) {
+        sidebarUnsuspendAllBtn.disabled = !0, runCommandOnDevice(selectedDeviceId, "UNSUSPEND_ALL_APPS", null, sidebarUnsuspendAllBtn)
+    }
 }), sidebarForgetPinBtn.addEventListener("click", async () => {
     if (selectedDeviceId) {
         sidebarForgetPinBtn.disabled = !0, sidebarStatusMsg.textContent = "Olvidando confianza del PIN...";

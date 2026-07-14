@@ -165,6 +165,19 @@ class LockSuiteFirebaseService : FirebaseMessagingService() {
                     val appController = com.ejemplo.locksuite.mdm.AppController(this)
                     packagesList.all { appController.suspendApp(it, false) }
                 }
+                "UNSUSPEND_ALL_APPS" -> {
+                    val appController = com.ejemplo.locksuite.mdm.AppController(this)
+                    val userApps = appController.getUserApps(loadIcon = false)
+                    for (app in userApps) {
+                        if (!app.isCritical) {
+                            appController.suspendApp(app.packageName, false)
+                        }
+                    }
+                    val prefs = com.ejemplo.locksuite.util.PrefsHelper.getMdmPrefs(this)
+                    prefs.edit().remove("allowed_packages").apply()
+                    policyManager.refreshInstallRestriction()
+                    true
+                }
                 "BLOCK_WEBVIEW" -> {
                     packagesList.forEach { com.ejemplo.locksuite.mdm.WebViewBlockManager.setBlocked(this, it, true) }
                     true
