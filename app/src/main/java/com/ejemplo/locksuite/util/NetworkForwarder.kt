@@ -48,6 +48,48 @@ object NetworkForwarder {
     }
 
     /**
+     * Responde inmediatamente con una dirección IP 0.0.0.0 para bloquear la consulta DNS en 0ms a nivel de red VPN.
+     */
+    fun sendBlockedDnsResponse(
+        packet: IpPacketParser.ParsedPacket,
+        output: FileOutputStream
+    ) {
+        try {
+            val originalPayload = packet.payload
+            if (originalPayload.size < 12) return
+
+            val id0 = originalPayload[0]
+            val id1 = originalPayload[1]
+
+            val questionPayload = originalPayload.copyOfRange(12, originalPayload.size)
+
+            val answerRecord = byteArrayOf(
+                0xc0.toByte(), 0x0c.toByte(),
+                0x00.toByte(), 0x01.toByte(),
+                0x00.toByte(), 0x01.toByte(),
+                0x00.toByte(), 0x00.toByte(), 0x00.toByte(), 0x3c.toByte(),
+                0x00.toByte(), 0x04.toByte(),
+                0x00.toByte(), 0x00.toByte(), 0x00.toByte(), 0x00.toByte()
+            )
+
+            val dnsResponse = ByteBuffer.allocate(12 + questionPayload.size + answerRecord.size)
+            dnsResponse.put(id0)
+            dnsResponse.put(id1)
+            dnsResponse.putShort(0x8180.toShort()) // Response, No Error
+            dnsResponse.putShort(1.toShort()) // QDCOUNT = 1
+            dnsResponse.putShort(1.toShort()) // ANCOUNT = 1
+            dnsResponse.putShort(0.toShort()) // NSCOUNT = 0
+            dnsResponse.putShort(0.toShort()) // ARCOUNT = 0
+            dnsResponse.put(questionPayload)
+            dnsResponse.put(answerRecord)
+
+            output.write(buildResponseIpPacket(packet, dnsResponse.array()))
+        } catch (e: Exception) {
+            android.util.Log.w("KosherVPN", "Fallo enviando respuesta DNS bloqueada: ${e.message}")
+        }
+    }
+
+    /**
      * Reconstruye un paquete IPv4 y UDP invertido con los datos reales de la respuesta.
      */
     private fun buildResponseIpPacket(

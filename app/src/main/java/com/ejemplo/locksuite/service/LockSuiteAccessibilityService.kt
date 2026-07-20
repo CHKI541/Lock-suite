@@ -760,16 +760,16 @@ class LockSuiteAccessibilityService : AccessibilityService() {
     private fun scanForMercadoPagoOffers() {
         val root = rootInActiveWindow ?: return
         val rootPkg = root.packageName?.toString() ?: ""
-        if (rootPkg != PKG_MERCADOPAGO && !WEBVIEW_PROVIDER_PACKAGES.contains(rootPkg)) {
+
+        if (rootPkg == PKG_MERCADOPAGO || WEBVIEW_PROVIDER_PACKAGES.contains(rootPkg)) {
+            val containsOffersNode = checkNodeTreeForOffers(root)
             root.recycle()
-            return
-        }
 
-        val containsOffersNode = checkNodeTreeForOffers(root)
-        root.recycle()
-
-        if (containsOffersNode) {
-            triggerMercadoPagoBlock()
+            if (containsOffersNode) {
+                triggerMercadoPagoBlock()
+            }
+        } else {
+            root.recycle()
         }
     }
 
@@ -778,20 +778,16 @@ class LockSuiteAccessibilityService : AccessibilityService() {
         val text = node.text?.toString()?.lowercase() ?: ""
         val contentDesc = node.contentDescription?.toString()?.lowercase() ?: ""
         val viewId = node.viewIdResourceName?.lowercase() ?: ""
+        val className = node.className?.toString() ?: ""
+
+        if (className.contains("WebkitPageActivity", ignoreCase = true) || className.contains("mlwebkit", ignoreCase = true)) {
+            return true
+        }
 
         val combined = "$text $contentDesc $viewId"
 
-        if (node.isSelected || node.isFocused) {
-            if (MP_OFFERS_KEYWORDS.any { combined.contains(it) }) {
-                return true
-            }
-        }
-
-        if (combined.contains("ofertas") || combined.contains("promociones") || combined.contains("mercadolibre.com")) {
-            if (node.className?.toString()?.contains("WebView", ignoreCase = true) == true ||
-                node.className?.toString()?.contains("TextView", ignoreCase = true) == true && (node.parent?.isSelected == true || node.isFocused)) {
-                return true
-            }
+        if (MP_OFFERS_KEYWORDS.any { combined.contains(it) }) {
+            return true
         }
 
         val childCount = node.childCount

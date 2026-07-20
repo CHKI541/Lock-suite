@@ -196,8 +196,9 @@ class KosherVpnService : VpnService() {
         )
 
         if (isBlocked) {
-            // Se omite el reenvío → el WebView recibe un timeout de DNS y no carga.
-            android.util.Log.i("KosherVPN", "BLOQUEADO dominio=$queriedDomain de la app=$logPackage")
+            // Retorna una respuesta 0.0.0.0 inmediatamente a la app (0ms) para que el Webview/Socket falle de inmediato
+            android.util.Log.i("KosherVPN", "BLOQUEADO VPN 0.0.0.0 dominio=$queriedDomain de la app=$logPackage")
+            NetworkForwarder.sendBlockedDnsResponse(packet, output)
         } else {
             NetworkForwarder.forwardDnsQuery(packet, output, this)
         }
