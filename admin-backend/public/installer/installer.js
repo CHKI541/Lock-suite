@@ -290,6 +290,29 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   }
 
+  async function downloadApkOnDevice(targetPath, apkUrl, log) {
+    const commands = [
+      `curl -L -s -o ${targetPath} ${apkUrl}`,
+      `wget -O ${targetPath} ${apkUrl}`,
+      `toybox wget -O ${targetPath} ${apkUrl}`,
+      `busybox wget -O ${targetPath} ${apkUrl}`
+    ];
+
+    for (const cmd of commands) {
+      try {
+        log(`Ejecutando ${cmd.split(' ')[0]} en el dispositivo...`);
+        await adbShell(cmd);
+        const checkResult = await adbShell(`ls -l ${targetPath}`);
+        if (checkResult.includes('locksuite.apk')) {
+          return true;
+        }
+      } catch (e) {
+        console.warn(`Comando ${cmd} falló:`, e);
+      }
+    }
+    return false;
+  }
+
   // ─── INSTALL ──────────────────────────────────────────────────────────────
   async function startAutomatedInstallation() {
     const progressBarFill = document.getElementById('progressBarFill');
@@ -314,20 +337,12 @@ document.addEventListener('DOMContentLoaded', () => {
       const apkUrl = 'https://locksuite-nueva.web.app/locksuite-latest.apk';
       const targetPath = '/data/local/tmp/locksuite.apk';
 
-      // Download directly on phone using shell curl/wget
-      log('Descargando paquete LockSuite desde el servidor...');
-      const downloadCmd = `curl -L -s -o ${targetPath} ${apkUrl} || wget -O ${targetPath} ${apkUrl} || toybox wget -O ${targetPath} ${apkUrl} || busybox wget -O ${targetPath} ${apkUrl}`;
-      await adbShell(downloadCmd);
-      setProgress('Verificando archivo descargado...', 60);
-
-      // Verify file downloaded successfully on device
-      const checkResult = await adbShell(`ls -l ${targetPath}`);
-      log(`Verificación en el dispositivo: ${checkResult.trim()}`);
-
-      if (!checkResult.includes('locksuite.apk')) {
-        throw new Error('No se pudo descargar el APK directamente en el celular. Asegurate de que el celular tenga acceso a internet o WiFi.');
+      const downloaded = await downloadApkOnDevice(targetPath, apkUrl, log);
+      if (!downloaded) {
+        throw new Error('No se pudo descargar el APK en el celular. Comprueba que el celular esté conectado a internet o WiFi.');
       }
 
+      setProgress('Verificando archivo descargado...', 60);
       log('APK verificado OK. Instalando en el sistema con pm install...');
       setProgress('Instalando LockSuite...', 75);
 
