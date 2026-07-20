@@ -108,12 +108,49 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // ─── ADB CONNECTION (WebUSB native protocol) ─────────────────────────────
   async function connectAdbDevice() {
-    // Request device - Android ADB interface uses class 255, subclass 42, protocol 1
-    const device = await navigator.usb.requestDevice({
-      filters: [
-        { classCode: 0xff, subclassCode: 0x42, protocolCode: 0x01 }
-      ]
-    });
+    // Android USB vendor IDs (covers most brands)
+    const ANDROID_VENDOR_IDS = [
+      0x18d1, // Google / Nexus / Pixel
+      0x04e8, // Samsung
+      0x2a70, // OnePlus
+      0x2717, // Xiaomi / Mi
+      0x12d1, // Huawei / Honor
+      0x1004, // LG
+      0x0fce, // Sony / Xperia
+      0x22b8, // Motorola
+      0x0bb4, // HTC
+      0x17ef, // Lenovo
+      0x1bbb, // Alcatel
+      0x19d2, // ZTE
+      0x2d95, // vivo
+      0x1ebf, // MediaTek
+      0x0489, // Foxconn
+      0x413c, // Dell
+      0x05ac, // Apple (for testing)
+      0x8087, // Intel
+    ];
+
+    let device = null;
+
+    // Try with vendor ID filters first
+    try {
+      device = await navigator.usb.requestDevice({
+        filters: ANDROID_VENDOR_IDS.map(id => ({ vendorId: id }))
+      });
+    } catch (e) {
+      if (e.name === 'NotFoundError') {
+        // If no matching device found with vendor IDs, try with no filter (shows all USB devices)
+        try {
+          device = await navigator.usb.requestDevice({ filters: [] });
+        } catch (e2) {
+          throw e2;
+        }
+      } else {
+        throw e;
+      }
+    }
+
+    if (!device) throw new Error('No se seleccionó ningún dispositivo.');
 
     await device.open();
 
@@ -121,7 +158,7 @@ document.addEventListener('DOMContentLoaded', () => {
       await device.selectConfiguration(1);
     }
 
-    // Find ADB interface
+    // Find ADB interface (class 255, subclass 42, protocol 1)
     let adbInterface = null;
     for (const iface of device.configuration.interfaces) {
       for (const alt of iface.alternates) {
@@ -136,8 +173,9 @@ document.addEventListener('DOMContentLoaded', () => {
     if (!adbInterface) {
       await device.close();
       throw new Error(
-        'No se encontró la interfaz ADB en el dispositivo.\n' +
-        '¿Activaste la Depuración USB en Opciones de Desarrollador?'
+        'No se encontró la interfaz ADB en el dispositivo.\n\n' +
+        '¿Activaste la Depuración USB en Opciones de Desarrollador?\n' +
+        'El celular debe estar desbloqueado y en modo "Transferencia de archivos" (MTP).'
       );
     }
 
