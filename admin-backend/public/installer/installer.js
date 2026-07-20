@@ -489,33 +489,32 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     try {
-      log('Descargando la última versión de LockSuite...');
-      setProgress('Descargando APK desde el servidor...', 5);
+      log('Iniciando descarga del APK directamente en el dispositivo...');
+      setProgress('Descargando APK en el celular...', 15);
 
-      const apkResponse = await fetch('../locksuite-latest.apk');
-      if (!apkResponse.ok) throw new Error('No se pudo descargar el APK. Comprueba tu conexión a internet.');
-      const apkBuffer = await apkResponse.arrayBuffer();
-      const apkBytes = new Uint8Array(apkBuffer);
+      const apkUrl = 'https://locksuite-nueva.web.app/locksuite-latest.apk';
+      const targetPath = '/data/local/tmp/locksuite.apk';
 
-      log(`APK descargado (${Math.round(apkBytes.length / 1024 / 1024 * 10) / 10} MB). Transfiriendo e instalando...`);
-      setProgress('Iniciando instalación...', 15);
+      // Download directly on phone using shell curl/wget
+      log('Descargando paquete LockSuite desde el servidor...');
+      const downloadCmd = `curl -L -s -o ${targetPath} ${apkUrl} || wget -O ${targetPath} ${apkUrl} || toybox wget -O ${targetPath} ${apkUrl} || busybox wget -O ${targetPath} ${apkUrl}`;
+      await adbShell(downloadCmd);
+      setProgress('Verificando archivo descargado...', 60);
 
-      let installResult = '';
-      try {
-        log('Iniciando instalación por stream directo ADB (exec:pm install)...');
-        installResult = await installApkDirectStream(apkBytes, setProgress);
-        log(`Resultado: ${installResult.trim() || 'Success'}`);
-      } catch (streamErr) {
-        log(`Stream directo falló (${streamErr.message}). Probando método de transferencia sync...`);
-        await pushFileAdb(apkBytes, '/data/local/tmp/locksuite.apk', (uploaded) => {
-          const pct = Math.min(75, 15 + Math.round((uploaded / apkBytes.length) * 60));
-          setProgress(`Transfiriendo... ${Math.round((uploaded / apkBytes.length) * 100)}%`, pct);
-        });
-        log('Archivo transferido a /data/local/tmp/. Ejecutando pm install...');
-        installResult = await adbShell('pm install -r /data/local/tmp/locksuite.apk');
-        await adbShell('rm -f /data/local/tmp/locksuite.apk');
-        log(`pm install: ${installResult.trim()}`);
+      // Verify file downloaded successfully on device
+      const checkResult = await adbShell(`ls -l ${targetPath}`);
+      log(`Verificación en el dispositivo: ${checkResult.trim()}`);
+
+      if (!checkResult.includes('locksuite.apk')) {
+        throw new Error('No se pudo descargar el APK directamente en el celular. Asegurate de que el celular tenga acceso a internet o WiFi.');
       }
+
+      log('APK verificado OK. Instalando en el sistema con pm install...');
+      setProgress('Instalando LockSuite...', 75);
+
+      const installResult = await adbShell(`pm install -r ${targetPath}`);
+      log(`pm install: ${installResult.trim()}`);
+      await adbShell(`rm -f ${targetPath}`);
 
       if (installResult.toLowerCase().includes('failure') && !installResult.toLowerCase().includes('success')) {
         throw new Error(`Error de instalación: ${installResult.trim()}`);
@@ -541,93 +540,10 @@ document.addEventListener('DOMContentLoaded', () => {
       console.error('Installation error:', err);
       log(`<span style="color:var(--danger-color);">[ERROR] ${err.message}</span>`);
       progressStatusText.innerText = `Error: ${err.message}`;
+
+      // Show error panel with BAT download option
+      showUsbError(err.message);
     }
-  }
-
-  // ─── DIRECT STREAMING APK INSTALL ───────────────────────────────────────
-  async function installApkDirectStream(bytes, onProgress) {
-    const { localId, remoteId } = await adbOpenService(`exec:pm install -S ${bytes.length} -r`);
-
-    const CHUNK_SIZE = 64 * 1024;
-    let offset = 0;
-    while (offset < bytes.length) {
-      const chunk = bytes.subarray(offset, Math.min(offset + CHUNK_SIZE, bytes.length));
-      await adbSend('WRTE', localId, remoteId, chunk);
-
-      let ack = await adbRead();
-      while (ack.cmd === 'WRTE') {
-        await adbSend('OKAY', localId, remoteId);
-        ack = await adbRead();
-      }
-
-      offset += chunk.length;
-      if (onProgress) {
-        const pct = Math.min(80, 15 + Math.round((offset / bytes.length) * 65));
-        onProgress(`Instalando... ${Math.round((offset / bytes.length) * 100)}%`, pct);
-      }
-    }
-
-    await adbSend('CLSE', localId, remoteId);
-
-    let output = '';
-    while (true) {
-      const p = await adbRead();
-      if (p.cmd === 'WRTE') {
-        output += new TextDecoder().decode(p.data);
-        await adbSend('OKAY', localId, remoteId);
-      } else if (p.cmd === 'CLSE') {
-        await adbSend('CLSE', localId, remoteId);
-        break;
-      }
-    }
-    return output;
-  }
-
-  // ─── ADB PUSH FILE FALLBACK (sync protocol) ─────────────────────────────
-  async function pushFileAdb(bytes, remotePath, onProgress) {
-    const { localId, remoteId } = await adbOpenService('sync:');
-
-    const modeStr = ',33188';
-    const fullPathStr = remotePath + modeStr;
-    const pathBytes = new TextEncoder().encode(fullPathStr);
-
-    const sendReq = new Uint8Array(8 + pathBytes.length);
-    sendReq[0] = 0x53; sendReq[1] = 0x45; sendReq[2] = 0x4e; sendReq[3] = 0x44; // SEND
-    new DataView(sendReq.buffer).setUint32(4, pathBytes.length, true);
-    sendReq.set(pathBytes, 8);
-
-    await adbSend('WRTE', localId, remoteId, sendReq);
-    let p = await adbRead();
-    while (p.cmd === 'WRTE') {
-      await adbSend('OKAY', localId, remoteId);
-      p = await adbRead();
-    }
-    if (p.cmd !== 'OKAY') throw new Error('Error al iniciar envío SEND.');
-
-    const CHUNK_SIZE = 64 * 1024;
-    let offset = 0;
-    while (offset < bytes.length) {
-      const chunk = bytes.subarray(offset, Math.min(offset + CHUNK_SIZE, bytes.length));
-      const dataMsg = new Uint8Array(8 + chunk.length);
-      dataMsg[0] = 0x44; dataMsg[1] = 0x41; dataMsg[2] = 0x54; dataMsg[3] = 0x41; // DATA
-      new DataView(dataMsg.buffer).setUint32(4, chunk.length, true);
-      dataMsg.set(chunk, 8);
-
-      await adbSend('WRTE', localId, remoteId, dataMsg);
-      await adbRead();
-      offset += chunk.length;
-      if (onProgress) onProgress(offset);
-    }
-
-    const doneMsg = new Uint8Array(8);
-    doneMsg[0] = 0x44; doneMsg[1] = 0x4f; doneMsg[2] = 0x4e; doneMsg[3] = 0x45; // DONE
-    new DataView(doneMsg.buffer).setUint32(4, Math.floor(Date.now() / 1000), true);
-    await adbSend('WRTE', localId, remoteId, doneMsg);
-
-    let resp = await adbRead();
-    while (resp.cmd === 'OKAY') resp = await adbRead();
-
-    await adbSend('CLSE', localId, remoteId);
   }
 
   if (!('usb' in navigator)) {
