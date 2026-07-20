@@ -139,14 +139,7 @@ object SelfUpdater {
                 )
 
                 // Desactivar temporalmente restricciones de OS para permitir la instalación MDM
-                try {
-                    val dpm = context.getSystemService(Context.DEVICE_POLICY_SERVICE) as? android.app.admin.DevicePolicyManager
-                    val adminComponent = android.content.ComponentName(context, com.ejemplo.locksuite.receiver.DeviceAdminReceiver::class.java)
-                    dpm?.clearUserRestriction(adminComponent, android.os.UserManager.DISALLOW_INSTALL_APPS)
-                    dpm?.clearUserRestriction(adminComponent, android.os.UserManager.DISALLOW_INSTALL_UNKNOWN_SOURCES)
-                } catch (e: Exception) {
-                    Log.w("SelfUpdater", "No se pudieron limpiar restricciones temporalmente: ${e.message}")
-                }
+                prepareTemporaryInstallAccess(context)
 
                 session.commit(pendingIntent.intentSender)
                 session.close()
@@ -238,14 +231,7 @@ object SelfUpdater {
                 )
 
                 // Desactivar temporalmente restricciones de OS para permitir la instalación MDM
-                try {
-                    val dpm = context.getSystemService(Context.DEVICE_POLICY_SERVICE) as? android.app.admin.DevicePolicyManager
-                    val adminComponent = android.content.ComponentName(context, com.ejemplo.locksuite.receiver.DeviceAdminReceiver::class.java)
-                    dpm?.clearUserRestriction(adminComponent, android.os.UserManager.DISALLOW_INSTALL_APPS)
-                    dpm?.clearUserRestriction(adminComponent, android.os.UserManager.DISALLOW_INSTALL_UNKNOWN_SOURCES)
-                } catch (e: Exception) {
-                    Log.w("SelfUpdater", "No se pudieron limpiar restricciones temporalmente: ${e.message}")
-                }
+                prepareTemporaryInstallAccess(context)
 
                 session.commit(pendingIntent.intentSender)
                 session.close()
@@ -256,6 +242,50 @@ object SelfUpdater {
                 Log.e("SelfUpdater", "Error al instalar $label", e)
                 return@withContext "Error al instalar $label: ${e.message}"
             }
+        }
+    }
+
+    private fun prepareTemporaryInstallAccess(context: Context) {
+        try {
+            PrefsHelper.getMdmPrefs(context)
+                .edit()
+                .putBoolean("mdm_install_in_progress", true)
+                .apply()
+
+            val dpm = context.getSystemService(Context.DEVICE_POLICY_SERVICE) as? android.app.admin.DevicePolicyManager
+            val adminComponent = android.content.ComponentName(context, com.ejemplo.locksuite.receiver.DeviceAdminReceiver::class.java)
+
+            dpm?.clearUserRestriction(adminComponent, android.os.UserManager.DISALLOW_INSTALL_APPS)
+            dpm?.clearUserRestriction(adminComponent, android.os.UserManager.DISALLOW_INSTALL_UNKNOWN_SOURCES)
+
+            scheduleInstallSafetyTimeout(context)
+
+            Thread.sleep(300)
+        } catch (e: Exception) {
+            Log.w("SelfUpdater", "Error al preparar permisos temporales de instalación: ${e.message}")
+        }
+    }
+
+    private fun scheduleInstallSafetyTimeout(context: Context) {
+        try {
+            val intent = Intent(context, com.ejemplo.locksuite.receiver.PackageReceiver::class.java).apply {
+                action = "INSTALL_SAFETY_TIMEOUT"
+            }
+            val flags = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+            } else {
+                PendingIntent.FLAG_UPDATE_CURRENT
+            }
+            val pendingIntent = PendingIntent.getBroadcast(context, 9922, intent, flags)
+            val alarmManager = context.getSystemService(Context.ALARM_SERVICE) as android.app.AlarmManager
+            val triggerAtMs = System.currentTimeMillis() + 120_000
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                alarmManager.setExactAndAllowWhileIdle(android.app.AlarmManager.RTC_WAKEUP, triggerAtMs, pendingIntent)
+            } else {
+                alarmManager.set(android.app.AlarmManager.RTC_WAKEUP, triggerAtMs, pendingIntent)
+            }
+        } catch (e: Exception) {
+            Log.w("SelfUpdater", "Error al programar timeout de instalación: ${e.message}")
         }
     }
 }

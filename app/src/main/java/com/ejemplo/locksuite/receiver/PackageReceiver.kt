@@ -15,11 +15,22 @@ class PackageReceiver : BroadcastReceiver() {
         
         val prefs = PrefsHelper.getMdmPrefs(context)
 
+        if (action == "INSTALL_SAFETY_TIMEOUT") {
+            Log.w("PackageReceiver", "⏰ Timeout de seguridad de instalación alcanzado. Restaurando restricciones MDM...")
+            try {
+                val policyManager = com.ejemplo.locksuite.mdm.PolicyManager(context)
+                policyManager.restoreInstallRestrictions()
+            } catch (e: Exception) {
+                e.printStackTrace()
+            }
+            return
+        }
+
         if (action == "UPDATE_TIMEOUT") {
             Log.w("PackageReceiver", "⏳ Tiempo límite de actualización alcanzado. Re-suspendiendo Google Play Store...")
             try {
                 val policyManager = com.ejemplo.locksuite.mdm.PolicyManager(context)
-                policyManager.refreshInstallRestriction()
+                policyManager.restoreInstallRestrictions()
             } catch (e: Exception) {
                 e.printStackTrace()
             }
@@ -35,7 +46,7 @@ class PackageReceiver : BroadcastReceiver() {
                 Log.i("PackageReceiver", "✅ Actualización/Instalación de $packageName completada. Re-suspendiendo Google Play Store...")
                 try {
                     val policyManager = com.ejemplo.locksuite.mdm.PolicyManager(context)
-                    policyManager.refreshInstallRestriction()
+                    policyManager.restoreInstallRestrictions()
                 } catch (e: Exception) {
                     e.printStackTrace()
                 }

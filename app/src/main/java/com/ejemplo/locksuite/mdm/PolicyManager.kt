@@ -68,6 +68,11 @@ class PolicyManager(private val context: Context) {
 
     fun refreshInstallRestriction() {
         val prefs = PrefsHelper.getMdmPrefs(context)
+        if (prefs.getBoolean("mdm_install_in_progress", false)) {
+            android.util.Log.i("PolicyManager", "Instalación MDM en progreso: omitiendo refreshInstallRestriction")
+            return
+        }
+
         val isBlocked = prefs.getBoolean("install_apps_blocked_admin", false)
         val allowed = prefs.getStringSet("allowed_packages", null) ?: emptySet()
         val hasAllowedApps = allowed.any { it != context.packageName && it != "com.ejemplo.locksuite" }
@@ -99,6 +104,24 @@ class PolicyManager(private val context: Context) {
                 e.printStackTrace()
             }
         }
+    }
+
+    fun restoreInstallRestrictions() {
+        val prefs = PrefsHelper.getMdmPrefs(context)
+        prefs.edit().putBoolean("mdm_install_in_progress", false).apply()
+        
+        // Restaurar restricción de orígenes desconocidos si estaba activada previamente
+        if (isRestrictionEnabled(UserManager.DISALLOW_INSTALL_UNKNOWN_SOURCES)) {
+            try {
+                dpm.addUserRestriction(adminComponent, UserManager.DISALLOW_INSTALL_UNKNOWN_SOURCES)
+                android.util.Log.i("PolicyManager", "Restaurada restricción DISALLOW_INSTALL_UNKNOWN_SOURCES")
+            } catch (e: Exception) {
+                e.printStackTrace()
+            }
+        }
+        
+        // Restaurar restricción de apps (nativa o programática)
+        refreshInstallRestriction()
     }
 
     fun setUninstallAppsBlocked(block: Boolean) =
@@ -417,7 +440,11 @@ class PolicyManager(private val context: Context) {
             UserManager.DISALLOW_CONFIG_VPN
         )
 
+        val isInstallInProgress = PrefsHelper.getMdmPrefs(context).getBoolean("mdm_install_in_progress", false)
         restrictions.forEach { restriction ->
+            if (isInstallInProgress && (restriction == UserManager.DISALLOW_INSTALL_APPS || restriction == UserManager.DISALLOW_INSTALL_UNKNOWN_SOURCES)) {
+                return@forEach
+            }
             if (isRestrictionEnabled(restriction)) {
                 try {
                     dpm.addUserRestriction(adminComponent, restriction)

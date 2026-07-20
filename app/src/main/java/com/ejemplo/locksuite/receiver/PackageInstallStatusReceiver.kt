@@ -16,7 +16,24 @@ class PackageInstallStatusReceiver : BroadcastReceiver() {
         // Restaurar restricciones de instalación del MDM tras completar o fallar el proceso
         try {
             val policyManager = com.ejemplo.locksuite.mdm.PolicyManager(context)
-            policyManager.refreshInstallRestriction()
+            policyManager.restoreInstallRestrictions()
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
+
+        // Cancelar alarma de timeout de seguridad
+        try {
+            val safetyIntent = Intent(context, PackageReceiver::class.java).apply {
+                action = "INSTALL_SAFETY_TIMEOUT"
+            }
+            val flags = if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.S) {
+                android.app.PendingIntent.FLAG_UPDATE_CURRENT or android.app.PendingIntent.FLAG_IMMUTABLE
+            } else {
+                android.app.PendingIntent.FLAG_UPDATE_CURRENT
+            }
+            val pendingIntent = android.app.PendingIntent.getBroadcast(context, 9922, safetyIntent, flags)
+            val alarmManager = context.getSystemService(Context.ALARM_SERVICE) as android.app.AlarmManager
+            alarmManager.cancel(pendingIntent)
         } catch (e: Exception) {
             e.printStackTrace()
         }
