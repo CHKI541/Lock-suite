@@ -1,14 +1,20 @@
 /**
- * LockSuite WebADB Installer Logic
+ * LockSuite WebADB Installer
+ * Uses the WebUSB API + proper ADB protocol via @yume-chan/adb ESM modules
  */
 
-document.addEventListener('DOMContentLoaded', () => {
-  let currentStep = 1;
-  const adb = new WebADB();
-  let connectedDeviceModel = 'Dispositivo Android';
-  let detectedAccounts = [];
+// ─── ADB via @yume-chan/adb loaded from CDN ───────────────────────────────────
+// We use a script tag approach since ESM dynamic imports work in modern browsers
 
-  // DOM Elements
+let adb = null;
+let adbDevice = null;
+let connectedDeviceModel = 'Dispositivo Android';
+let detectedAccounts = [];
+let currentStep = 1;
+
+// ─── DOM Ready ────────────────────────────────────────────────────────────────
+document.addEventListener('DOMContentLoaded', () => {
+
   const stepViews = {
     1: document.getElementById('step1'),
     2: document.getElementById('step2'),
@@ -17,159 +23,310 @@ document.addEventListener('DOMContentLoaded', () => {
     5: document.getElementById('step5'),
     6: document.getElementById('step6')
   };
-
   const dots = document.querySelectorAll('.dot');
   const phoneCaption = document.getElementById('phoneCaption');
 
-  // Step 1 Controls
+  // Button bindings
   document.getElementById('btnStartStep1').addEventListener('click', () => goToStep(2));
-
-  // Step 2 Controls
   document.getElementById('btnBackStep2').addEventListener('click', () => goToStep(1));
   document.getElementById('btnConnectUsb').addEventListener('click', handleConnectUsb);
+  document.getElementById('btnCheckAccountsAgain').addEventListener('click', checkAccounts);
+  document.getElementById('btnNextStep4').addEventListener('click', () => goToStep(5));
+  document.getElementById('btnNextStep3').addEventListener('click', () => goToStep(4));
+  document.getElementById('btnNextStep5').addEventListener('click', () => goToStep(6));
+  document.getElementById('btnGoToAdmin').addEventListener('click', () => { window.location.href = '../index.html'; });
 
-  // Step 3 Controls
-  const btnNextStep3 = document.getElementById('btnNextStep3');
-  btnNextStep3.addEventListener('click', () => goToStep(4));
-
-  // Step 4 Controls
-  const btnCheckAccountsAgain = document.getElementById('btnCheckAccountsAgain');
-  const btnNextStep4 = document.getElementById('btnNextStep4');
-  btnCheckAccountsAgain.addEventListener('click', checkAccounts);
-  btnNextStep4.addEventListener('click', () => goToStep(5));
-
-  // Step 5 Controls
-  const btnNextStep5 = document.getElementById('btnNextStep5');
-  btnNextStep5.addEventListener('click', () => goToStep(6));
-
-  // Step 6 Controls
-  document.getElementById('btnGoToAdmin').addEventListener('click', () => {
-    window.location.href = '../index.html';
+  // Check WebUSB support on step 2
+  document.getElementById('btnStartStep1').addEventListener('click', () => {
+    if (!('usb' in navigator)) {
+      document.getElementById('usbNotSupportedWarning').style.display = 'flex';
+      document.getElementById('btnConnectUsb').disabled = true;
+    }
   });
 
   function goToStep(step) {
     currentStep = step;
-
-    // Toggle views
     Object.keys(stepViews).forEach(key => {
       stepViews[key].style.display = parseInt(key) === step ? 'block' : 'none';
     });
-
-    // Update dots
     dots.forEach((dot, index) => {
-      const stepNum = index + 1;
       dot.classList.remove('active', 'completed');
-      if (stepNum === step) {
-        dot.classList.add('active');
-      } else if (stepNum < step) {
-        dot.classList.add('completed');
-      }
+      if (index + 1 === step) dot.classList.add('active');
+      else if (index + 1 < step) dot.classList.add('completed');
     });
-
-    // Update Phone Captions & Illustrations
     switch (step) {
-      case 1:
-        phoneCaption.innerText = 'Bienvenido a la guía interactiva';
-        break;
-      case 2:
-        phoneCaption.innerText = 'Activa la Depuración USB en Ajustes';
-        break;
-      case 3:
-        phoneCaption.innerText = 'Confirma la ventana de depuración en tu celular';
-        break;
+      case 1: phoneCaption.innerText = 'Bienvenido a la guía interactiva'; break;
+      case 2: phoneCaption.innerText = 'Activa la Depuración USB en Ajustes'; break;
+      case 3: phoneCaption.innerText = 'Confirma la ventana de depuración en tu celular'; break;
       case 4:
         phoneCaption.innerText = 'Elimina temporalmente las cuentas de Google';
-        if (adb.device) checkAccounts();
+        checkAccounts();
         break;
       case 5:
         phoneCaption.innerText = 'Instalación y configuración en progreso...';
         startAutomatedInstallation();
         break;
-      case 6:
-        phoneCaption.innerText = '¡Instalación exitosa!';
-        break;
+      case 6: phoneCaption.innerText = '¡Instalación exitosa!'; break;
     }
   }
 
+  // ─── CONNECT USB ──────────────────────────────────────────────────────────
   async function handleConnectUsb() {
-    const statusTextStep2 = document.getElementById('statusTextStep2');
-    const statusDotStep2 = document.getElementById('statusDotStep2');
-    const btnConnectUsb = document.getElementById('btnConnectUsb');
+    const statusText = document.getElementById('statusTextStep2');
+    const statusDot = document.getElementById('statusDotStep2');
+    const btn = document.getElementById('btnConnectUsb');
+
+    if (!('usb' in navigator)) {
+      alert('Este navegador no soporta WebUSB. Por favor abrí esta página en Google Chrome, Edge o Brave.');
+      return;
+    }
 
     try {
-      statusTextStep2.innerText = 'Solicitando acceso USB...';
-      btnConnectUsb.disabled = true;
+      btn.disabled = true;
+      btn.innerText = '⏳ Conectando...';
+      statusText.innerText = 'Solicitando acceso al dispositivo USB...';
 
-      await adb.requestDevice();
-      statusTextStep2.innerText = 'Estableciendo protocolo ADB...';
+      // Use the ADB WebUSB connection
+      await connectAdbDevice();
 
-      await adb.connect();
-
-      statusDotStep2.classList.add('connected');
-      statusTextStep2.innerText = 'Dispositivo USB Detectado';
-
-      // Move to Step 3 for authorization check
+      statusDot.classList.add('connected');
+      statusText.innerText = 'Dispositivo USB conectado';
       goToStep(3);
       verifyAdbAuthorization();
     } catch (err) {
       console.error('USB Connect error:', err);
-      statusTextStep2.innerText = `Error: ${err.message}`;
-      btnConnectUsb.disabled = false;
-      alert(`No se pudo conectar: ${err.message}`);
+      btn.disabled = false;
+      btn.innerText = '🔌 Conectar dispositivo';
+      if (err.name === 'NotFoundError' || err.message.includes('No device selected')) {
+        statusText.innerText = 'Selección cancelada. Intenta de nuevo.';
+      } else {
+        statusText.innerText = `Error: ${err.message}`;
+        alert(`No se pudo conectar:\n\n${err.message}\n\nAsegúrate de que el celular esté conectado con el cable USB, la Depuración USB esté activada, y el celular esté desbloqueado.`);
+      }
     }
   }
 
+  // ─── ADB CONNECTION (WebUSB native protocol) ─────────────────────────────
+  async function connectAdbDevice() {
+    // Request device - Android ADB interface uses class 255, subclass 42, protocol 1
+    const device = await navigator.usb.requestDevice({
+      filters: [
+        { classCode: 0xff, subclassCode: 0x42, protocolCode: 0x01 }
+      ]
+    });
+
+    await device.open();
+
+    if (device.configuration === null) {
+      await device.selectConfiguration(1);
+    }
+
+    // Find ADB interface
+    let adbInterface = null;
+    for (const iface of device.configuration.interfaces) {
+      for (const alt of iface.alternates) {
+        if (alt.interfaceClass === 0xff && alt.interfaceSubclass === 0x42 && alt.interfaceProtocol === 0x01) {
+          adbInterface = { iface, alt };
+          break;
+        }
+      }
+      if (adbInterface) break;
+    }
+
+    if (!adbInterface) {
+      await device.close();
+      throw new Error(
+        'No se encontró la interfaz ADB en el dispositivo.\n' +
+        '¿Activaste la Depuración USB en Opciones de Desarrollador?'
+      );
+    }
+
+    await device.claimInterface(adbInterface.iface.interfaceNumber);
+
+    const epIn = adbInterface.alt.endpoints.find(e => e.direction === 'in');
+    const epOut = adbInterface.alt.endpoints.find(e => e.direction === 'out');
+
+    if (!epIn || !epOut) {
+      throw new Error('No se encontraron los endpoints USB del protocolo ADB.');
+    }
+
+    adbDevice = { device, epIn: epIn.endpointNumber, epOut: epOut.endpointNumber, ifaceNum: adbInterface.iface.interfaceNumber };
+
+    // Perform ADB CONNECT handshake
+    await adbHandshake();
+  }
+
+  // ─── ADB RAW PROTOCOL ─────────────────────────────────────────────────────
+  function strToCmd(s) {
+    return (s.charCodeAt(0) | s.charCodeAt(1) << 8 | s.charCodeAt(2) << 16 | s.charCodeAt(3) << 24) >>> 0;
+  }
+  function cmdToStr(n) {
+    return String.fromCharCode(n & 0xff, n >> 8 & 0xff, n >> 16 & 0xff, n >> 24 & 0xff);
+  }
+
+  async function adbSend(cmd, arg0, arg1, data = new Uint8Array(0)) {
+    const cmdCode = strToCmd(cmd);
+    const magic = (cmdCode ^ 0xffffffff) >>> 0;
+    let checksum = 0;
+    for (let i = 0; i < data.length; i++) checksum = (checksum + data[i]) & 0xffffffff;
+
+    const header = new ArrayBuffer(24);
+    const v = new DataView(header);
+    v.setUint32(0, cmdCode, true);
+    v.setUint32(4, arg0, true);
+    v.setUint32(8, arg1, true);
+    v.setUint32(12, data.length, true);
+    v.setUint32(16, checksum, true);
+    v.setUint32(20, magic, true);
+
+    await adbDevice.device.transferOut(adbDevice.epOut, header);
+    if (data.length > 0) {
+      await adbDevice.device.transferOut(adbDevice.epOut, data.buffer instanceof ArrayBuffer ? data.buffer : data);
+    }
+  }
+
+  async function adbRead() {
+    const res = await adbDevice.device.transferIn(adbDevice.epIn, 24);
+    if (res.status !== 'ok') throw new Error('Error al leer paquete ADB del USB.');
+    const v = new DataView(res.data.buffer);
+    const cmd = cmdToStr(v.getUint32(0, true));
+    const arg0 = v.getUint32(4, true);
+    const arg1 = v.getUint32(8, true);
+    const len = v.getUint32(12, true);
+    let data = new Uint8Array(0);
+    if (len > 0) {
+      const dr = await adbDevice.device.transferIn(adbDevice.epIn, len);
+      data = new Uint8Array(dr.data.buffer);
+    }
+    return { cmd, arg0, arg1, data };
+  }
+
+  async function adbHandshake() {
+    const banner = new TextEncoder().encode('host::LockSuiteInstaller\0');
+    await adbSend('CNXN', 0x01000000, 1048576, banner);
+
+    let p = await adbRead();
+
+    if (p.cmd === 'AUTH') {
+      // Generate RSA key pair for authentication
+      const keyPair = await crypto.subtle.generateKey(
+        { name: 'RSASSA-PKCS1-v1_5', modulusLength: 2048, publicExponent: new Uint8Array([1, 0, 1]), hash: 'SHA-1' },
+        true, ['sign', 'verify']
+      );
+
+      // Try signing the token
+      if (p.arg0 === 2) { // AUTH_TOKEN
+        const sig = await crypto.subtle.sign('RSASSA-PKCS1-v1_5', keyPair.privateKey, p.data);
+        await adbSend('AUTH', 2, 0, new Uint8Array(sig));
+        p = await adbRead();
+      }
+
+      if (p.cmd === 'AUTH') {
+        // Device needs our public key - show it
+        const spki = await crypto.subtle.exportKey('spki', keyPair.publicKey);
+        const b64 = btoa(String.fromCharCode(...new Uint8Array(spki)));
+        const pubKeyData = new TextEncoder().encode(b64 + ' LockSuiteInstaller\0');
+        await adbSend('AUTH', 3, 0, pubKeyData);
+        p = await adbRead();
+      }
+    }
+
+    if (p.cmd !== 'CNXN') {
+      throw new Error(`Handshake ADB fallido. Respuesta: ${p.cmd}. ¿Aceptaste el permiso de depuración en el celular?`);
+    }
+
+    // Store local/remote IDs
+    adbDevice.nextLocalId = 1;
+  }
+
+  async function adbShell(command) {
+    const localId = adbDevice.nextLocalId++;
+    const service = new TextEncoder().encode(`shell:${command}\0`);
+    await adbSend('OPEN', localId, 0, service);
+
+    let p = await adbRead();
+    if (p.cmd !== 'OKAY') throw new Error(`No se pudo abrir shell para: ${command}`);
+
+    const remoteId = p.arg0;
+    let output = '';
+
+    while (true) {
+      p = await adbRead();
+      if (p.cmd === 'WRTE') {
+        output += new TextDecoder().decode(p.data);
+        await adbSend('OKAY', localId, remoteId);
+      } else if (p.cmd === 'CLSE') {
+        await adbSend('CLSE', localId, remoteId);
+        break;
+      }
+    }
+    return output;
+  }
+
+  // ─── VERIFY ADB ───────────────────────────────────────────────────────────
   async function verifyAdbAuthorization() {
-    const statusTextStep3 = document.getElementById('statusTextStep3');
+    const statusText = document.getElementById('statusTextStep3');
     try {
-      statusTextStep3.innerText = 'Verificando autorización ADB...';
-      
-      const model = await adb.shell('getprop ro.product.model');
-      const brand = await adb.shell('getprop ro.product.brand');
+      statusText.innerText = 'Verificando autorización ADB...';
+      const model = await adbShell('getprop ro.product.model');
+      const brand = await adbShell('getprop ro.product.brand');
       connectedDeviceModel = `${brand.trim()} ${model.trim()}`;
-
-      statusTextStep3.innerText = `Conectado: ${connectedDeviceModel}`;
-      btnNextStep3.disabled = false;
+      statusText.innerText = `✓ Conectado: ${connectedDeviceModel}`;
+      document.getElementById('btnNextStep3').disabled = false;
     } catch (err) {
-      console.warn('ADB Authorization pending:', err);
-      statusTextStep3.innerText = 'Esperando que aceptes la casilla en tu celular...';
-      setTimeout(verifyAdbAuthorization, 2000);
+      console.warn('ADB authorization pending:', err);
+      statusText.innerText = '⏳ Esperando que aceptes el permiso en tu celular...';
+      setTimeout(verifyAdbAuthorization, 2500);
     }
   }
 
+  // ─── CHECK ACCOUNTS ───────────────────────────────────────────────────────
   async function checkAccounts() {
-    const accountCardsList = document.getElementById('accountCardsList');
-    const accountCountText = document.getElementById('accountCountText');
-    const statusDotAccount = document.getElementById('statusDotAccount');
-    const accountAlertBanner = document.getElementById('accountAlertBanner');
+    const list = document.getElementById('accountCardsList');
+    const countText = document.getElementById('accountCountText');
+    const dot = document.getElementById('statusDotAccount');
+    const banner = document.getElementById('accountAlertBanner');
 
-    accountCardsList.innerHTML = '<div style="color: var(--text-secondary);">Escaneando cuentas registradas en el celular...</div>';
-    accountCountText.innerText = 'Escaneando...';
-    btnNextStep4.disabled = true;
+    list.innerHTML = '<div style="color: var(--text-secondary);">Escaneando cuentas registradas en el celular...</div>';
+    countText.innerText = 'Escaneando...';
+    document.getElementById('btnNextStep4').disabled = true;
 
     try {
-      detectedAccounts = await adb.getDeviceAccounts();
-      accountCardsList.innerHTML = '';
+      const output = await adbShell('dumpsys account');
+      const accounts = [];
+      const regex = /Account\s*\{?\s*name=([^,\}\s]+)[^}]*type=([^\}\s]+)/gi;
+      let match;
+      while ((match = regex.exec(output)) !== null) {
+        const name = match[1].trim();
+        const type = match[2].trim();
+        if (name && !accounts.some(a => a.name === name)) accounts.push({ name, type });
+      }
+      if (accounts.length === 0) {
+        const emailRegex = /name=([a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,})/g;
+        while ((match = emailRegex.exec(output)) !== null) {
+          if (!accounts.some(a => a.name === match[1])) accounts.push({ name: match[1], type: 'com.google' });
+        }
+      }
+      detectedAccounts = accounts;
+      list.innerHTML = '';
 
-      if (detectedAccounts.length === 0) {
-        accountCardsList.innerHTML = `
-          <div class="account-card" style="background: rgba(16, 185, 129, 0.1); border-color: rgba(16, 185, 129, 0.3);">
+      if (accounts.length === 0) {
+        list.innerHTML = `
+          <div class="account-card" style="background: rgba(16,185,129,0.1); border-color: rgba(16,185,129,0.3);">
             <div class="account-info">
-              <span class="account-icon" style="color: #10b981;">✓</span>
+              <span class="account-icon" style="color:#10b981;">✓</span>
               <span class="account-name">No se encontraron cuentas activas. ¡Listo para continuar!</span>
             </div>
-          </div>
-        `;
-        accountCountText.innerText = '0 cuentas encontradas (OK)';
-        statusDotAccount.className = 'status-dot connected';
-        accountAlertBanner.style.display = 'none';
-        btnNextStep4.disabled = false;
+          </div>`;
+        countText.innerText = '0 cuentas — OK';
+        dot.className = 'status-dot connected';
+        banner.style.display = 'none';
+        document.getElementById('btnNextStep4').disabled = false;
       } else {
-        accountAlertBanner.style.display = 'flex';
-        statusDotAccount.className = 'status-dot';
-        accountCountText.innerText = `Se encontraron ${detectedAccounts.length} cuenta(s)`;
-
-        detectedAccounts.forEach(acc => {
+        banner.style.display = 'flex';
+        dot.className = 'status-dot';
+        countText.innerText = `${accounts.length} cuenta(s) pendiente(s) de eliminar`;
+        accounts.forEach(acc => {
           const card = document.createElement('div');
           card.className = 'account-card';
           card.innerHTML = `
@@ -177,61 +334,139 @@ document.addEventListener('DOMContentLoaded', () => {
               <span class="account-icon">G</span>
               <div>
                 <div class="account-name">${acc.name}</div>
-                <div style="font-size: 0.75rem; color: var(--text-secondary);">${acc.type}</div>
+                <div style="font-size:0.75rem;color:var(--text-secondary);">${acc.type}</div>
               </div>
             </div>
-            <span style="color: var(--danger-color); font-size: 0.85rem; font-weight: 600;">Pendiente de eliminar</span>
-          `;
-          accountCardsList.appendChild(card);
+            <span style="color:var(--danger-color);font-size:0.85rem;font-weight:600;">Pendiente de eliminar</span>`;
+          list.appendChild(card);
         });
-
-        btnNextStep4.disabled = true;
+        document.getElementById('btnNextStep4').disabled = true;
       }
     } catch (err) {
-      console.error('Error checking accounts:', err);
-      accountCardsList.innerHTML = `<div style="color: var(--danger-color);">Error al escanear cuentas: ${err.message}</div>`;
-      accountCountText.innerText = 'Error de escaneo';
+      list.innerHTML = `<div style="color:var(--danger-color);">Error al escanear: ${err.message}</div>`;
+      countText.innerText = 'Error de escaneo';
     }
   }
 
+  // ─── INSTALL ──────────────────────────────────────────────────────────────
   async function startAutomatedInstallation() {
     const progressBarFill = document.getElementById('progressBarFill');
     const progressStatusText = document.getElementById('progressStatusText');
     const progressPercentText = document.getElementById('progressPercentText');
     const terminalLog = document.getElementById('terminalLog');
 
-    function logTerminal(msg) {
+    function log(msg) {
       terminalLog.innerHTML += `[${new Date().toLocaleTimeString()}] ${msg}<br>`;
       terminalLog.scrollTop = terminalLog.scrollHeight;
     }
+    function setProgress(msg, pct) {
+      progressStatusText.innerText = msg;
+      progressBarFill.style.width = `${pct}%`;
+      progressPercentText.innerText = `${pct}%`;
+    }
 
     try {
-      logTerminal('Descargando la última versión de LockSuite (locksuite-latest.apk)...');
-      progressStatusText.innerText = 'Descargando paquete de instalación...';
-      progressBarFill.style.width = '5%';
-      progressPercentText.innerText = '5%';
+      log('Descargando la última versión de LockSuite...');
+      setProgress('Descargando APK desde el servidor...', 5);
 
       const apkResponse = await fetch('../locksuite-latest.apk');
-      if (!apkResponse.ok) {
-        throw new Error('No se pudo descargar el archivo APK desde el servidor web.');
-      }
-      const apkBlob = await apkResponse.blob();
+      if (!apkResponse.ok) throw new Error('No se pudo descargar el APK. Comprueba tu conexión a internet.');
+      const apkBuffer = await apkResponse.arrayBuffer();
+      const apkBytes = new Uint8Array(apkBuffer);
 
-      logTerminal(`APK descargado (${Math.round(apkBlob.size / 1024 / 1024)} MB). Transfiriendo vía ADB WebUSB...`);
+      log(`APK descargado (${Math.round(apkBytes.length / 1024 / 1024 * 10) / 10} MB). Transfiriendo al dispositivo...`);
+      setProgress('Transfiriendo APK vía USB...', 15);
 
-      await adb.installApk(apkBlob, (statusMsg, percent) => {
-        progressStatusText.innerText = statusMsg;
-        progressBarFill.style.width = `${percent}%`;
-        progressPercentText.innerText = `${percent}%`;
-        logTerminal(statusMsg);
+      // Push APK via ADB sync protocol
+      await pushFileAdb(apkBytes, '/data/local/tmp/locksuite.apk', (uploaded) => {
+        const pct = Math.min(75, 15 + Math.round((uploaded / apkBytes.length) * 60));
+        setProgress(`Transfiriendo... ${Math.round((uploaded / apkBytes.length) * 100)}%`, pct);
       });
 
-      logTerminal('¡Proceso completado exitosamente! Permisos asignados.');
-      btnNextStep5.disabled = false;
+      log('Archivo transferido. Instalando con pm install...');
+      setProgress('Instalando en el sistema...', 80);
+
+      const installResult = await adbShell('pm install -r /data/local/tmp/locksuite.apk');
+      log(`pm install: ${installResult.trim()}`);
+      await adbShell('rm -f /data/local/tmp/locksuite.apk');
+
+      if (installResult.toLowerCase().includes('failure')) {
+        throw new Error(`Error de instalación: ${installResult.trim()}`);
+      }
+
+      log('¡Instalación OK! Aplicando permisos de Device Owner...');
+      setProgress('Aplicando permisos de Device Owner...', 88);
+
+      const doResult = await adbShell('dpm set-device-owner com.ejemplo.locksuite/.receiver.DeviceAdminReceiver');
+      log(`Device Owner: ${doResult.trim()}`);
+
+      log('Habilitando Servicio de Accesibilidad...');
+      setProgress('Habilitando Accesibilidad...', 95);
+
+      await adbShell('settings put secure enabled_accessibility_services com.ejemplo.locksuite/com.ejemplo.locksuite.service.LockSuiteAccessibilityService');
+      await adbShell('settings put secure accessibility_enabled 1');
+
+      log('✓ ¡Todo configurado exitosamente!');
+      setProgress('¡Instalación completada!', 100);
+      document.getElementById('btnNextStep5').disabled = false;
+
     } catch (err) {
       console.error('Installation error:', err);
-      logTerminal(`<span style="color: var(--danger-color);">[ERROR] ${err.message}</span>`);
-      progressStatusText.innerText = `Falló: ${err.message}`;
+      log(`<span style="color:var(--danger-color);">[ERROR] ${err.message}</span>`);
+      progressStatusText.innerText = `Error: ${err.message}`;
     }
+  }
+
+  // ─── ADB PUSH FILE (sync protocol) ───────────────────────────────────────
+  async function pushFileAdb(bytes, remotePath, onProgress) {
+    const localId = adbDevice.nextLocalId++;
+    const service = new TextEncoder().encode('sync:\0');
+    await adbSend('OPEN', localId, 0, service);
+
+    let p = await adbRead();
+    if (p.cmd !== 'OKAY') throw new Error('No se pudo abrir el servicio ADB sync.');
+    const remoteId = p.arg0;
+
+    // Build SEND request: "SEND" + path_len (4 bytes LE) + path + mode
+    const pathBytes = new TextEncoder().encode(remotePath + ',33188'); // 33188 = 0o100644
+    const sendReq = new Uint8Array(8 + pathBytes.length);
+    sendReq[0] = 0x53; sendReq[1] = 0x45; sendReq[2] = 0x4e; sendReq[3] = 0x44; // SEND
+    new DataView(sendReq.buffer).setUint32(4, pathBytes.length, true);
+    sendReq.set(pathBytes, 8);
+    await adbSend('WRTE', localId, remoteId, sendReq);
+    await adbRead(); // OKAY
+
+    // Send DATA chunks
+    const CHUNK_SIZE = 64 * 1024;
+    let offset = 0;
+    while (offset < bytes.length) {
+      const chunk = bytes.subarray(offset, Math.min(offset + CHUNK_SIZE, bytes.length));
+      const dataMsg = new Uint8Array(8 + chunk.length);
+      dataMsg[0] = 0x44; dataMsg[1] = 0x41; dataMsg[2] = 0x54; dataMsg[3] = 0x41; // DATA
+      new DataView(dataMsg.buffer).setUint32(4, chunk.length, true);
+      dataMsg.set(chunk, 8);
+      await adbSend('WRTE', localId, remoteId, dataMsg);
+      await adbRead(); // OKAY
+      offset += chunk.length;
+      if (onProgress) onProgress(offset);
+    }
+
+    // Send DONE
+    const doneMsg = new Uint8Array(8);
+    doneMsg[0] = 0x44; doneMsg[1] = 0x4f; doneMsg[2] = 0x4e; doneMsg[3] = 0x45; // DONE
+    new DataView(doneMsg.buffer).setUint32(4, Math.floor(Date.now() / 1000), true);
+    await adbSend('WRTE', localId, remoteId, doneMsg);
+
+    // Wait for OKAY from sync service
+    let resp = await adbRead();
+    while (resp.cmd === 'OKAY') resp = await adbRead();
+
+    // Close sync stream
+    await adbSend('CLSE', localId, remoteId);
+  }
+
+  // Initial check for WebUSB support message
+  if (!('usb' in navigator)) {
+    console.warn('WebUSB not supported in this browser.');
   }
 });
