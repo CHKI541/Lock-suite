@@ -59,8 +59,24 @@
 		return this.device.transferOut(ep, data);
 	};
 
-	Adb.WebUSB.Transport.prototype.receive = function(ep, len) {
-		return this.device.transferIn(ep, len).then(response => response.data);
+	Adb.WebUSB.Transport.prototype.receive = async function(ep, len) {
+		let total = new Uint8Array(len);
+		let received = 0;
+		const MAX_CHUNK = 65536; // Max 64KB per transferIn call to stay under WebUSB 32MB buffer limit
+
+		while (received < len) {
+			const toRead = Math.min(len - received, MAX_CHUNK);
+			const res = await this.device.transferIn(ep, toRead);
+			if (res.status !== 'ok' || !res.data) {
+				throw new Error('Error al recibir datos USB');
+			}
+			const chunk = new Uint8Array(res.data.buffer, res.data.byteOffset, res.data.byteLength);
+			total.set(chunk, received);
+			received += chunk.length;
+			if (chunk.length === 0) break;
+		}
+
+		return new DataView(total.buffer);
 	};
 
 	Adb.WebUSB.Transport.prototype.find = function(filter) {
