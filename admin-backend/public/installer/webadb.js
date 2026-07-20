@@ -202,6 +202,10 @@
 			let arg1 = view.getUint32(8, true);
 			let len = view.getUint32(12, true);
 
+			if (len > 256 * 1024) {
+				len = 0;
+			}
+
 			let promise = Promise.resolve(new Uint8Array(0));
 			if (len > 0) {
 				promise = adb.receive(len).then(data => new Uint8Array(data.buffer, data.byteOffset, data.byteLength));
