@@ -290,12 +290,18 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   }
 
-  async function installApkViaExecStream(apkBytes, log, setProgress) {
-    log('Iniciando transferencia e instalación directa por stream ADB (exec:pm install)...');
-    setProgress('Transfiriendo e instalando LockSuite...', 25);
+  async function installApkViaShellCat(apkBytes, log, setProgress) {
+    const targetPath = '/data/local/tmp/locksuite.apk';
+    log('Iniciando transferencia de APK a /data/local/tmp/ vía canal USB shell...');
+    setProgress('Transfiriendo LockSuite al celular...', 20);
 
-    const service = `exec:pm install -S ${apkBytes.length} -r`;
-    const stream = await adbInstance.open(service);
+    let stream = null;
+    try {
+      stream = await adbInstance.open(`shell:cat > ${targetPath}`);
+    } catch (e) {
+      log('Canal shell cat restringido, probando servicio exec...');
+      stream = await adbInstance.open(`exec:pm install -S ${apkBytes.length} -r`);
+    }
 
     const CHUNK_SIZE = 64 * 1024;
     let offset = 0;
@@ -304,16 +310,20 @@ document.addEventListener('DOMContentLoaded', () => {
       await stream.send(chunk);
       offset += chunk.length;
 
-      const pct = Math.min(80, 25 + Math.round((offset / apkBytes.length) * 55));
-      setProgress(`Instalando... ${Math.round((offset / apkBytes.length) * 100)}% (${Math.round(offset / 1024 / 1024 * 10) / 10} MB)`, pct);
+      const pct = Math.min(75, 20 + Math.round((offset / apkBytes.length) * 55));
+      setProgress(`Transfiriendo... ${Math.round((offset / apkBytes.length) * 100)}% (${Math.round(offset / 1024 / 1024 * 10) / 10} MB)`, pct);
     }
 
-    log('Transferencia completada. Procesando paquete en el sistema...');
-    await stream.close();
+    log('Transferencia completada. Instalando paquete en Android (pm install)...');
+    setProgress('Instalando LockSuite en el sistema...', 80);
 
-    const output = await stream.readAll();
-    log(`Resultado pm install: ${output.trim() || 'Success'}`);
-    return output;
+    try { await stream.close(); } catch (e) {}
+
+    const installResult = await adbShell(`pm install -r ${targetPath}`);
+    log(`pm install: ${installResult.trim() || 'Success'}`);
+    await adbShell(`rm -f ${targetPath}`);
+
+    return installResult;
   }
 
   // ─── INSTALL ──────────────────────────────────────────────────────────────
@@ -344,7 +354,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
       log(`APK listo en memoria (${Math.round(apkBytes.length / 1024 / 1024 * 10) / 10} MB). Transfiriendo al celular...`);
 
-      const installResult = await installApkViaExecStream(apkBytes, log, setProgress);
+      const installResult = await installApkViaShellCat(apkBytes, log, setProgress);
 
       if (installResult.toLowerCase().includes('failure') && !installResult.toLowerCase().includes('success')) {
         throw new Error(`Error de instalación: ${installResult.trim()}`);
