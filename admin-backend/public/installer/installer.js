@@ -1,18 +1,14 @@
 /**
  * LockSuite WebADB Installer
- * Uses the WebUSB API + proper ADB protocol via @yume-chan/adb ESM modules
+ * Powered by WebADB Engine (Google Chrome Labs / Tango)
  */
 
-// ─── ADB via @yume-chan/adb loaded from CDN ───────────────────────────────────
-// We use a script tag approach since ESM dynamic imports work in modern browsers
-
-let adb = null;
-let adbDevice = null;
+let adbInstance = null;
+let webUsbTransport = null;
 let connectedDeviceModel = 'Dispositivo Android';
 let detectedAccounts = [];
 let currentStep = 1;
 
-// ─── DOM Ready ────────────────────────────────────────────────────────────────
 document.addEventListener('DOMContentLoaded', () => {
 
   const stepViews = {
@@ -86,8 +82,9 @@ document.addEventListener('DOMContentLoaded', () => {
       btn.innerText = '⏳ Conectando...';
       statusText.innerText = 'Solicitando acceso al dispositivo USB...';
 
-      // Use the ADB WebUSB connection
-      await connectAdbDevice();
+      // Open WebUSB transport via webadb.js engine
+      webUsbTransport = await Adb.open("WebUSB");
+      adbInstance = await webUsbTransport.connectAdb("host::LockSuite");
 
       statusDot.classList.add('connected');
       statusText.innerText = 'Dispositivo USB conectado';
@@ -101,7 +98,6 @@ document.addEventListener('DOMContentLoaded', () => {
       if (err.name === 'NotFoundError' || err.message.includes('No device selected')) {
         statusText.innerText = 'Selección cancelada. Intenta de nuevo.';
       } else {
-        // Show error with BAT download option
         statusText.innerText = `Error: ${err.message}`;
         showUsbError(err.message);
       }
@@ -162,220 +158,15 @@ document.addEventListener('DOMContentLoaded', () => {
       </div>
     `;
 
-    // Insert below the connect button
     const actionsBar = document.querySelector('#step2 .actions-bar');
-    actionsBar.parentNode.insertBefore(panel, actionsBar);
+    if (actionsBar) actionsBar.parentNode.insertBefore(panel, actionsBar);
   }
 
-  // ─── ADB CONNECTION (WebUSB native protocol) ─────────────────────────────
-  async function connectAdbDevice() {
-    // Android USB vendor IDs (covers most brands)
-    const ANDROID_VENDOR_IDS = [
-      0x18d1, // Google / Nexus / Pixel
-      0x04e8, // Samsung
-      0x2a70, // OnePlus
-      0x2717, // Xiaomi / Mi
-      0x12d1, // Huawei / Honor
-      0x1004, // LG
-      0x0fce, // Sony / Xperia
-      0x22b8, // Motorola
-      0x0bb4, // HTC
-      0x17ef, // Lenovo
-      0x1bbb, // Alcatel
-      0x19d2, // ZTE
-      0x2d95, // vivo
-      0x1ebf, // MediaTek
-      0x0489, // Foxconn
-      0x413c, // Dell
-      0x05ac, // Apple (for testing)
-      0x8087, // Intel
-    ];
-
-    let device = null;
-
-    // Try with vendor ID filters first
-    try {
-      device = await navigator.usb.requestDevice({
-        filters: ANDROID_VENDOR_IDS.map(id => ({ vendorId: id }))
-      });
-    } catch (e) {
-      if (e.name === 'NotFoundError') {
-        // If no matching device found with vendor IDs, try with no filter (shows all USB devices)
-        try {
-          device = await navigator.usb.requestDevice({ filters: [] });
-        } catch (e2) {
-          throw e2;
-        }
-      } else {
-        throw e;
-      }
-    }
-
-    if (!device) throw new Error('No se seleccionó ningún dispositivo.');
-
-    await device.open();
-
-    if (device.configuration === null) {
-      await device.selectConfiguration(1);
-    }
-
-    // Find ADB interface (class 255, subclass 42, protocol 1)
-    let adbInterface = null;
-    for (const iface of device.configuration.interfaces) {
-      for (const alt of iface.alternates) {
-        if (alt.interfaceClass === 0xff && alt.interfaceSubclass === 0x42 && alt.interfaceProtocol === 0x01) {
-          adbInterface = { iface, alt };
-          break;
-        }
-      }
-      if (adbInterface) break;
-    }
-
-    if (!adbInterface) {
-      await device.close();
-      throw new Error(
-        'No se encontró la interfaz ADB en el dispositivo.\n\n' +
-        '¿Activaste la Depuración USB en Opciones de Desarrollador?\n' +
-        'El celular debe estar desbloqueado y en modo "Transferencia de archivos" (MTP).'
-      );
-    }
-
-    await device.claimInterface(adbInterface.iface.interfaceNumber);
-
-    const epIn = adbInterface.alt.endpoints.find(e => e.direction === 'in');
-    const epOut = adbInterface.alt.endpoints.find(e => e.direction === 'out');
-
-    if (!epIn || !epOut) {
-      throw new Error('No se encontraron los endpoints USB del protocolo ADB.');
-    }
-
-    adbDevice = { device, epIn: epIn.endpointNumber, epOut: epOut.endpointNumber, ifaceNum: adbInterface.iface.interfaceNumber };
-
-    // Perform ADB CONNECT handshake
-    await adbHandshake();
-  }
-
-  // ─── ADB RAW PROTOCOL ─────────────────────────────────────────────────────
-  function strToCmd(s) {
-    return (s.charCodeAt(0) | s.charCodeAt(1) << 8 | s.charCodeAt(2) << 16 | s.charCodeAt(3) << 24) >>> 0;
-  }
-  function cmdToStr(n) {
-    return String.fromCharCode(n & 0xff, n >> 8 & 0xff, n >> 16 & 0xff, n >> 24 & 0xff);
-  }
-
-  async function adbSend(cmd, arg0, arg1, data = new Uint8Array(0)) {
-    const cmdCode = strToCmd(cmd);
-    const magic = (cmdCode ^ 0xffffffff) >>> 0;
-    let checksum = 0;
-    for (let i = 0; i < data.length; i++) checksum = (checksum + data[i]) & 0xffffffff;
-
-    const header = new ArrayBuffer(24);
-    const v = new DataView(header);
-    v.setUint32(0, cmdCode, true);
-    v.setUint32(4, arg0, true);
-    v.setUint32(8, arg1, true);
-    v.setUint32(12, data.length, true);
-    v.setUint32(16, checksum, true);
-    v.setUint32(20, magic, true);
-
-    await adbDevice.device.transferOut(adbDevice.epOut, header);
-    if (data.length > 0) {
-      await adbDevice.device.transferOut(adbDevice.epOut, data.buffer instanceof ArrayBuffer ? data.buffer : data);
-    }
-  }
-
-  async function adbRead() {
-    const res = await adbDevice.device.transferIn(adbDevice.epIn, 24);
-    if (res.status !== 'ok') throw new Error('Error al leer paquete ADB del USB.');
-    const v = new DataView(res.data.buffer);
-    const cmd = cmdToStr(v.getUint32(0, true));
-    const arg0 = v.getUint32(4, true);
-    const arg1 = v.getUint32(8, true);
-    const len = v.getUint32(12, true);
-    let data = new Uint8Array(0);
-    if (len > 0) {
-      const dr = await adbDevice.device.transferIn(adbDevice.epIn, len);
-      data = new Uint8Array(dr.data.buffer);
-    }
-    return { cmd, arg0, arg1, data };
-  }
-
-  async function adbHandshake() {
-    const banner = new TextEncoder().encode('host::LockSuiteInstaller\0');
-    await adbSend('CNXN', 0x01000000, 1048576, banner);
-
-    let p = await adbRead();
-
-    if (p.cmd === 'AUTH') {
-      // Generate RSA key pair for authentication
-      const keyPair = await crypto.subtle.generateKey(
-        { name: 'RSASSA-PKCS1-v1_5', modulusLength: 2048, publicExponent: new Uint8Array([1, 0, 1]), hash: 'SHA-1' },
-        true, ['sign', 'verify']
-      );
-
-      // Try signing the token
-      if (p.arg0 === 2) { // AUTH_TOKEN
-        const sig = await crypto.subtle.sign('RSASSA-PKCS1-v1_5', keyPair.privateKey, p.data);
-        await adbSend('AUTH', 2, 0, new Uint8Array(sig));
-        p = await adbRead();
-      }
-
-      if (p.cmd === 'AUTH') {
-        // Device needs our public key - show it
-        const spki = await crypto.subtle.exportKey('spki', keyPair.publicKey);
-        const b64 = btoa(String.fromCharCode(...new Uint8Array(spki)));
-        const pubKeyData = new TextEncoder().encode(b64 + ' LockSuiteInstaller\0');
-        await adbSend('AUTH', 3, 0, pubKeyData);
-        p = await adbRead();
-      }
-    }
-
-    if (p.cmd !== 'CNXN') {
-      throw new Error(`Handshake ADB fallido. Respuesta: ${p.cmd}. ¿Aceptaste el permiso de depuración en el celular?`);
-    }
-
-    // Store local/remote IDs
-    adbDevice.nextLocalId = 1;
-  }
-
-  // ─── ADB SERVICE HELPER (WITH LEFTOVER PACKET FILTERING) ───────────────────
-  async function adbOpenService(serviceName) {
-    const localId = adbDevice.nextLocalId++;
-    const service = new TextEncoder().encode(serviceName);
-    await adbSend('OPEN', localId, 0, service);
-
-    let p = await adbRead();
-    let attempts = 15;
-    while (attempts > 0) {
-      if (p.cmd === 'OKAY' && p.arg1 === localId) {
-        return { localId, remoteId: p.arg0 };
-      }
-      console.log(`[adbOpenService] Discarding leftover packet ${p.cmd} (arg0=${p.arg0}, arg1=${p.arg1}) for ${serviceName}`);
-      p = await adbRead();
-      attempts--;
-    }
-
-    if (p.cmd === 'OKAY' && p.arg1 === localId) {
-      return { localId, remoteId: p.arg0 };
-    }
-    throw new Error(`Servicio rechazado para ${serviceName}: cmd=${p.cmd}`);
-  }
-
+  // ─── ADB SHELL EXECUTION ──────────────────────────────────────────────────
   async function adbShell(command) {
-    const { localId, remoteId } = await adbOpenService(`shell:${command}`);
-    let output = '';
-
-    while (true) {
-      const p = await adbRead();
-      if (p.cmd === 'WRTE') {
-        output += new TextDecoder().decode(p.data);
-        await adbSend('OKAY', localId, remoteId);
-      } else if (p.cmd === 'CLSE') {
-        await adbSend('CLSE', localId, remoteId);
-        break;
-      }
-    }
-    return output;
+    if (!adbInstance) throw new Error('Conexión ADB no disponible');
+    const stream = await adbInstance.shell(command);
+    return await stream.readAll();
   }
 
   // ─── VERIFY ADB ───────────────────────────────────────────────────────────
