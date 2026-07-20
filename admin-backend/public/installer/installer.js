@@ -290,27 +290,30 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   }
 
-  async function downloadApkOnDevice(targetPath, apkUrl, log) {
-    const commands = [
-      `curl -L -s -o ${targetPath} ${apkUrl}`,
-      `wget -O ${targetPath} ${apkUrl}`,
-      `toybox wget -O ${targetPath} ${apkUrl}`,
-      `busybox wget -O ${targetPath} ${apkUrl}`
-    ];
+  async function installApkViaExecStream(apkBytes, log, setProgress) {
+    log('Iniciando transferencia e instalación directa por stream ADB (exec:pm install)...');
+    setProgress('Transfiriendo e instalando LockSuite...', 25);
 
-    for (const cmd of commands) {
-      try {
-        log(`Ejecutando ${cmd.split(' ')[0]} en el dispositivo...`);
-        await adbShell(cmd);
-        const checkResult = await adbShell(`ls -l ${targetPath}`);
-        if (checkResult.includes('locksuite.apk')) {
-          return true;
-        }
-      } catch (e) {
-        console.warn(`Comando ${cmd} falló:`, e);
-      }
+    const service = `exec:pm install -S ${apkBytes.length} -r`;
+    const stream = await adbInstance.open(service);
+
+    const CHUNK_SIZE = 64 * 1024;
+    let offset = 0;
+    while (offset < apkBytes.length) {
+      const chunk = apkBytes.subarray(offset, Math.min(offset + CHUNK_SIZE, apkBytes.length));
+      await stream.send(chunk);
+      offset += chunk.length;
+
+      const pct = Math.min(80, 25 + Math.round((offset / apkBytes.length) * 55));
+      setProgress(`Instalando... ${Math.round((offset / apkBytes.length) * 100)}% (${Math.round(offset / 1024 / 1024 * 10) / 10} MB)`, pct);
     }
-    return false;
+
+    log('Transferencia completada. Procesando paquete en el sistema...');
+    await stream.close();
+
+    const output = await stream.readAll();
+    log(`Resultado pm install: ${output.trim() || 'Success'}`);
+    return output;
   }
 
   // ─── INSTALL ──────────────────────────────────────────────────────────────
@@ -331,24 +334,17 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     try {
-      log('Iniciando descarga del APK directamente en el dispositivo...');
-      setProgress('Descargando APK en el celular...', 15);
+      log('Descargando la última versión de LockSuite desde el servidor...');
+      setProgress('Descargando paquete en el navegador...', 10);
 
-      const apkUrl = 'https://locksuite-nueva.web.app/locksuite-latest.apk';
-      const targetPath = '/data/local/tmp/locksuite.apk';
+      const apkResponse = await fetch('../locksuite-latest.apk');
+      if (!apkResponse.ok) throw new Error('No se pudo descargar el paquete APK del servidor.');
+      const apkBuffer = await apkResponse.arrayBuffer();
+      const apkBytes = new Uint8Array(apkBuffer);
 
-      const downloaded = await downloadApkOnDevice(targetPath, apkUrl, log);
-      if (!downloaded) {
-        throw new Error('No se pudo descargar el APK en el celular. Comprueba que el celular esté conectado a internet o WiFi.');
-      }
+      log(`APK listo en memoria (${Math.round(apkBytes.length / 1024 / 1024 * 10) / 10} MB). Transfiriendo al celular...`);
 
-      setProgress('Verificando archivo descargado...', 60);
-      log('APK verificado OK. Instalando en el sistema con pm install...');
-      setProgress('Instalando LockSuite...', 75);
-
-      const installResult = await adbShell(`pm install -r ${targetPath}`);
-      log(`pm install: ${installResult.trim()}`);
-      await adbShell(`rm -f ${targetPath}`);
+      const installResult = await installApkViaExecStream(apkBytes, log, setProgress);
 
       if (installResult.toLowerCase().includes('failure') && !installResult.toLowerCase().includes('success')) {
         throw new Error(`Error de instalación: ${installResult.trim()}`);
