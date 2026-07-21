@@ -74,7 +74,7 @@ class AppController(private val context: Context) {
             true
         } catch (e: Exception) {
             e.printStackTrace()
-            false
+            !hide
         }
     }
 
@@ -115,7 +115,7 @@ class AppController(private val context: Context) {
             true
         } catch (e: Exception) {
             e.printStackTrace()
-            false
+            !suspend
         }
     }
 
