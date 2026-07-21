@@ -14,8 +14,8 @@ android {
         applicationId = "com.ejemplo.locksuite"
         minSdk = 24
         targetSdk = 34
-        versionCode = 24
-        versionName = "0.3.4"
+        versionCode = 25
+        versionName = "0.3.5"
 
         ndk {
             abiFilters.addAll(setOf("arm64-v8a"))

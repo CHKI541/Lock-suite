@@ -88,8 +88,9 @@ class PolicyManager(private val context: Context) {
                 prefs.edit().putBoolean("install_blocked_programmatic", false).apply()
             }
             try {
-                // Suspender Google Play Store (com.android.vending) para evitar instalaciones remotas o en segundo plano
-                dpm.setPackagesSuspended(adminComponent, arrayOf("com.android.vending"), true)
+                // Respetar preferencia explícita de Play Store (si suspend_com.android.vending es false, no suspender)
+                val isPlayStoreSuspended = prefs.getBoolean("suspend_com.android.vending", true)
+                dpm.setPackagesSuspended(adminComponent, arrayOf("com.android.vending"), isPlayStoreSuspended)
             } catch (e: Exception) {
                 e.printStackTrace()
             }
@@ -482,15 +483,12 @@ class PolicyManager(private val context: Context) {
 
         // Suspender Google Play Store si el bloqueo de instalación está activado o si fue suspendida individualmente
         val prefs = PrefsHelper.getMdmPrefs(context)
-        val shouldSuspendPlayStore = prefs.getBoolean("install_apps_blocked_admin", false) ||
-                prefs.getBoolean("suspend_com.android.vending", false)
-        if (shouldSuspendPlayStore) {
-            try {
-                dpm.setPackagesSuspended(adminComponent, arrayOf("com.android.vending"), true)
-                android.util.Log.i("PolicyManager", "reapplyAllRestrictions: Google Play Store re-suspendido con éxito")
-            } catch (e: Exception) {
-                e.printStackTrace()
-            }
+        val shouldSuspendPlayStore = prefs.getBoolean("suspend_com.android.vending", prefs.getBoolean("install_apps_blocked_admin", false))
+        try {
+            dpm.setPackagesSuspended(adminComponent, arrayOf("com.android.vending"), shouldSuspendPlayStore)
+            android.util.Log.i("PolicyManager", "reapplyAllRestrictions: Google Play Store estado de suspensión aplicado ($shouldSuspendPlayStore)")
+        } catch (e: Exception) {
+            e.printStackTrace()
         }
 
         // Aplicar FRP si está activado

@@ -535,11 +535,11 @@ async function runCommandOnDevice(e, t, n = null, a = null, i = null, extraParam
                         ackRef.off();
                         sidebarStatusMsg.textContent = "✓ Comando aplicado con éxito en el celular";
                         if (a) a.disabled = false;
-                        if (i) i();
                     } else if (status === "failed") {
                         clearTimeout(timeoutId);
                         ackRef.off();
-                        sidebarStatusMsg.textContent = "✗ El comando falló en el celular";
+                        const reason = snap.val().reason ? ` (${snap.val().reason})` : "";
+                        sidebarStatusMsg.textContent = "✗ El comando falló en el celular" + reason;
                         if (a) a.disabled = false;
                         if (i) i();
                     }

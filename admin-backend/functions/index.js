@@ -186,6 +186,9 @@ exports.sendCommandV8 = onRequest(FUNCTION_OPTIONS, async (req, res) => {
       payload.packages = clean.join(",");
       await deviceRef.child("allowedPackages").set(clean);
       await deviceRef.child("info/allowedPackages").set(clean).catch(() => {});
+    } else if (typeof packages === "string" && packages.trim().length > 0) {
+      const clean = packages.split(",").map(p => p.trim()).filter(p => /^[a-zA-Z0-9_.]+$/.test(p));
+      if (clean.length > 0) payload.packages = clean.join(",");
     } else if (Array.isArray(packages) && packages.length > 0) {
       const clean = packages.map(p => String(p).trim()).filter(p => /^[a-zA-Z0-9_.]+$/.test(p));
       if (clean.length > 0) payload.packages = clean.join(",");
