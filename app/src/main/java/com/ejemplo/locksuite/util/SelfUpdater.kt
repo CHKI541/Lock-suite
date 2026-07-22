@@ -18,7 +18,8 @@ import java.net.HttpURLConnection
 import java.net.URL
 
 object SelfUpdater {
-    private const val VERSION_URL = "https://locksuite-nueva.web.app/version.json"
+    private const val VERSION_URL = "https://raw.githubusercontent.com/CHKI541/Lock-Suite/main/admin-backend/public/version.json"
+    private const val FALLBACK_VERSION_URL = "https://locksuite-nueva.web.app/version.json"
 
     suspend fun checkAndPerformUpdate(context: Context, showToasts: Boolean = false, onProgress: ((Int) -> Unit)? = null): String? {
         return withContext(Dispatchers.IO) {

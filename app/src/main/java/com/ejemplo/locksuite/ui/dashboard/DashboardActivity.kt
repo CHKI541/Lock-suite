@@ -409,6 +409,11 @@ fun DashboardScreen(onLogout: () -> Unit) {
                     onClick = { selectedTab = 2 },
                     text = { Text(LocaleManager.t("Servicios"), color = if (selectedTab == 2) accentOrange else Color.Gray) }
                 )
+                Tab(
+                    selected = selectedTab == 3,
+                    onClick = { selectedTab = 3 },
+                    text = { Text(LocaleManager.t("Presets"), color = if (selectedTab == 3) accentOrange else Color.Gray) }
+                )
             }
 
             when (selectedTab) {
@@ -419,6 +424,7 @@ fun DashboardScreen(onLogout: () -> Unit) {
                     onTriggerPermissionsReauth = { showReauthDialogForPermissions = true },
                     onTriggerUninstallReauth = { showReauthDialogForUninstall = true }
                 )
+                3 -> PresetsTabContent(context)
             }
         }
     }
@@ -727,6 +733,39 @@ fun PoliciesTabContent(context: Context) {
                     label = "Bloquear GIFs y Stickers en Gboard (Tenor)",
                     isChecked = remember(refreshKey) { policyManager.isGifsBlocked() },
                     onCheckedChange = { policyManager.setGifsBlocked(it).also { refreshKey++ } }
+                )
+            }
+        }
+
+        // Grupo 4: Opciones Avanzadas de Aplicaciones y Mercado Pago
+        item {
+            PolicyGroupCard(title = "Opciones Avanzadas de Aplicaciones y Mercado Pago") {
+                PolicySwitchRow(
+                    label = "Ocultar icono al suspender aplicaciones",
+                    isChecked = remember(refreshKey) { policyManager.isHideSuspendedApps() },
+                    onCheckedChange = { 
+                        policyManager.setHideSuspendedApps(it)
+                        refreshKey++
+                        true
+                    }
+                )
+                PolicySwitchRow(
+                    label = "Mercado Pago: Bloquear Ofertas (por Accesibilidad)",
+                    isChecked = remember(refreshKey) { policyManager.isMercadoPagoBlockOffersAccessibilityEnabled() },
+                    onCheckedChange = { 
+                        policyManager.setMercadoPagoBlockOffersAccessibility(it)
+                        refreshKey++
+                        true
+                    }
+                )
+                PolicySwitchRow(
+                    label = "Mercado Pago: Bloquear Ofertas (por VPN DNS)",
+                    isChecked = remember(refreshKey) { policyManager.isMercadoPagoBlockOffersVpnEnabled() },
+                    onCheckedChange = { 
+                        policyManager.setMercadoPagoBlockOffersVpn(it)
+                        refreshKey++
+                        true
+                    }
                 )
             }
         }
@@ -1352,6 +1391,183 @@ fun AppRowItem(
                                 checkedTrackColor = Color(0xFFF1C40F)
                             )
                         )
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun PresetsTabContent(context: Context) {
+    val policyManager = remember { PolicyManager(context) }
+    var presetNameInput by remember { mutableStateOf("") }
+    var refreshKey by remember { mutableIntStateOf(0) }
+    val presetsMap = remember(refreshKey) { policyManager.getLocalPresets() }
+
+    val importLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.GetContent()
+    ) { uri: Uri? ->
+        uri?.let {
+            try {
+                val inputStream = context.contentResolver.openInputStream(it)
+                val jsonString = inputStream?.bufferedReader()?.use { reader -> reader.readText() } ?: ""
+                if (jsonString.isNotEmpty()) {
+                    val success = policyManager.importPolicyPresetJson(jsonString)
+                    if (success) {
+                        Toast.makeText(context, "✅ Backup (.locksuite) importado y aplicado con éxito.", Toast.LENGTH_LONG).show()
+                        refreshKey++
+                    } else {
+                        Toast.makeText(context, "❌ Error al aplicar el backup.", Toast.LENGTH_LONG).show()
+                    }
+                }
+            } catch (e: SecurityException) {
+                Toast.makeText(context, "🚨 ALERTA: ${e.message}", Toast.LENGTH_LONG).show()
+            } catch (e: Exception) {
+                Toast.makeText(context, "Error al leer archivo: ${e.message}", Toast.LENGTH_LONG).show()
+            }
+        }
+    }
+
+    LazyColumn(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(16.dp),
+        verticalArrangement = Arrangement.spacedBy(16.dp)
+    ) {
+        item {
+            Card(
+                colors = CardDefaults.cardColors(containerColor = Color(0xFF1E3E62)),
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(12.dp)
+            ) {
+                Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    Text("Guardar Configuración Actual (Preset)", color = Color(0xFFF1C40F), fontWeight = FontWeight.Bold, fontSize = 16.sp)
+                    Text(
+                        "Guarda todas las políticas y restricciones activas con un nombre personalizado para volverlas a aplicar rápidamente.",
+                        color = Color.White.copy(alpha = 0.7f),
+                        fontSize = 12.sp
+                    )
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        OutlinedTextField(
+                            value = presetNameInput,
+                            onValueChange = { presetNameInput = it },
+                            placeholder = { Text("Ej: Bloqueo A Fuerte", color = Color.Gray) },
+                            singleLine = true,
+                            colors = OutlinedTextFieldDefaults.colors(
+                                focusedBorderColor = Color(0xFFF1C40F),
+                                unfocusedBorderColor = Color.White.copy(alpha = 0.5f),
+                                focusedTextColor = Color.White,
+                                unfocusedTextColor = Color.White
+                            ),
+                            modifier = Modifier.weight(1f)
+                        )
+                        Button(
+                            onClick = {
+                                if (presetNameInput.isBlank()) {
+                                    Toast.makeText(context, "Ingresa un nombre para el perfil", Toast.LENGTH_SHORT).show()
+                                    return@Button
+                                }
+                                val jsonStr = policyManager.exportPolicyPresetJson(presetNameInput.trim())
+                                policyManager.saveLocalPreset(presetNameInput.trim(), jsonStr)
+                                presetNameInput = ""
+                                refreshKey++
+                                Toast.makeText(context, "Perfil guardado con éxito.", Toast.LENGTH_SHORT).show()
+                            },
+                            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFF1C40F), contentColor = Color(0xFF0B192C))
+                        ) {
+                            Text("Guardar", fontWeight = FontWeight.Bold)
+                        }
+                    }
+                }
+            }
+        }
+
+        item {
+            Card(
+                colors = CardDefaults.cardColors(containerColor = Color(0xFF1E3E62)),
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(12.dp)
+            ) {
+                Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    Text("Importar Copia de Seguridad (.locksuite)", color = Color(0xFFF1C40F), fontWeight = FontWeight.Bold, fontSize = 16.sp)
+                    Text(
+                        "Selecciona un archivo de respaldo .locksuite. El archivo se verificará criptográficamente mediante HMAC SHA-256 para evitar alteraciones.",
+                        color = Color.White.copy(alpha = 0.7f),
+                        fontSize = 12.sp
+                    )
+                    Button(
+                        onClick = {
+                            try {
+                                importLauncher.launch("*/*")
+                            } catch (e: Exception) {
+                                Toast.makeText(context, "Error: ${e.message}", Toast.LENGTH_SHORT).show()
+                            }
+                        },
+                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFF1C40F), contentColor = Color(0xFF0B192C)),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Text("Cargar Archivo .locksuite", fontWeight = FontWeight.Bold)
+                    }
+                }
+            }
+        }
+
+        item {
+            Text("Perfiles Guardados Localmente", color = Color(0xFFF1C40F), fontWeight = FontWeight.Bold, fontSize = 16.sp)
+        }
+
+        if (presetsMap.isEmpty()) {
+            item {
+                Text("No hay perfiles guardados aún.", color = Color.Gray, fontSize = 13.sp)
+            }
+        } else {
+            items(presetsMap.keys.toList()) { name ->
+                val jsonStr = presetsMap[name] ?: ""
+                Card(
+                    colors = CardDefaults.cardColors(containerColor = Color(0xFF1E3E62)),
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(8.dp)
+                ) {
+                    Row(
+                        modifier = Modifier.padding(12.dp).fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(name, color = Color.White, fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                        }
+                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            Button(
+                                onClick = {
+                                    try {
+                                        val success = policyManager.importPolicyPresetJson(jsonStr)
+                                        if (success) {
+                                            Toast.makeText(context, "Perfil '$name' aplicado con éxito.", Toast.LENGTH_SHORT).show()
+                                        }
+                                    } catch (e: SecurityException) {
+                                        Toast.makeText(context, "🚨 ALERTA: ${e.message}", Toast.LENGTH_LONG).show()
+                                    }
+                                },
+                                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF27AE60))
+                            ) {
+                                Text("Aplicar", fontSize = 11.sp)
+                            }
+                            Button(
+                                onClick = {
+                                    policyManager.deleteLocalPreset(name)
+                                    refreshKey++
+                                    Toast.makeText(context, "Perfil eliminado.", Toast.LENGTH_SHORT).show()
+                                },
+                                colors = ButtonDefaults.buttonColors(containerColor = Color.Red)
+                            ) {
+                                Text("Eliminar", fontSize = 11.sp)
+                            }
+                        }
                     }
                 }
             }

@@ -624,6 +624,35 @@ class PolicyManager(private val context: Context) {
         }
     }
 
+    fun saveLocalPreset(presetName: String, jsonString: String) {
+        val prefs = PrefsHelper.getMdmPrefs(context)
+        val currentJson = prefs.getString("local_presets_map", "{}") ?: "{}"
+        val obj = org.json.JSONObject(currentJson)
+        obj.put(presetName, jsonString)
+        prefs.edit().putString("local_presets_map", obj.toString()).apply()
+    }
+
+    fun getLocalPresets(): Map<String, String> {
+        val prefs = PrefsHelper.getMdmPrefs(context)
+        val currentJson = prefs.getString("local_presets_map", "{}") ?: "{}"
+        val obj = org.json.JSONObject(currentJson)
+        val map = mutableMapOf<String, String>()
+        val keys = obj.keys()
+        while (keys.hasNext()) {
+            val key = keys.next()
+            map[key] = obj.getString(key)
+        }
+        return map
+    }
+
+    fun deleteLocalPreset(presetName: String) {
+        val prefs = PrefsHelper.getMdmPrefs(context)
+        val currentJson = prefs.getString("local_presets_map", "{}") ?: "{}"
+        val obj = org.json.JSONObject(currentJson)
+        obj.remove(presetName)
+        prefs.edit().putString("local_presets_map", obj.toString()).apply()
+    }
+
     private fun computeHmacSha256(data: String): String {
         return try {
             val secretKey = "LockSuiteMDM_Preset_HMAC_SecretKey_2026"
